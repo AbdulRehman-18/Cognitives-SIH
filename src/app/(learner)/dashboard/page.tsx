@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { LearnerNav } from "@/components/learner-nav";
 import { DomainMatrix } from "@/components/caliper/domain-matrix";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -41,7 +42,7 @@ export default async function LearnerDashboardPage() {
         : { label: "Take a diagnostic assessment", href: "/assessment/new" };
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
+    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

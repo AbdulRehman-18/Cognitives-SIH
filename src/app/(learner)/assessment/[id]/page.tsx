@@ -6,11 +6,14 @@ import { AssessmentRunner, type RunnerQuestion } from "@/app/(learner)/assessmen
 
 export default async function AssessmentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ context?: string }>;
 }) {
   const session = await requireRole("LEARNER");
   const { id } = await params;
+  const { context } = await searchParams;
 
   const assessment = await db.assessment.findUnique({
     where: { id },
@@ -56,7 +59,14 @@ export default async function AssessmentPage({
 
   return (
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
-      <AssessmentRunner assessmentId={assessment.id} questions={questions} />
+      <AssessmentRunner
+        assessmentId={assessment.id}
+        questions={questions}
+        // PRD §5.4: the onboarding diagnostic never lands on the generic
+        // results screen with a "go to dashboard" exit — it routes straight
+        // to the partial gap report, which itself picks the one next action.
+        resultsHref={context === "onboarding" ? "/onboarding/report" : undefined}
+      />
     </AppShell>
   );
 }

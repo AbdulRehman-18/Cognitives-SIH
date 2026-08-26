@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress";
@@ -30,10 +31,16 @@ type SubmitStatus = "answering" | "submitting" | "error" | "done";
 export function AssessmentRunner({
   assessmentId,
   questions,
+  resultsHref,
 }: {
   assessmentId: string;
   questions: RunnerQuestion[];
+  /** When set, a successful submit navigates here instead of rendering the
+   * generic AssessmentResults screen inline — used by the onboarding
+   * diagnostic to route straight to the partial gap report (PRD §5.4). */
+  resultsHref?: string;
 }) {
+  const router = useRouter();
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<Record<string, string>>({});
   const [status, setStatus] = React.useState<SubmitStatus>("answering");
@@ -84,13 +91,17 @@ export function AssessmentRunner({
       }
 
       const data = (await res.json()) as { competencies: CompetencyResult[] };
+      if (resultsHref) {
+        router.push(resultsHref);
+        return;
+      }
       setResults(data.competencies);
       setStatus("done");
     } catch {
       setErrorKind("NETWORK");
       setStatus("error");
     }
-  }, [assessmentId, answers]);
+  }, [assessmentId, answers, resultsHref, router]);
 
   // Keyboard navigation: digit keys 1-4 select an option, Enter/ArrowRight
   // advances (or submits on the last question), ArrowLeft goes back.
