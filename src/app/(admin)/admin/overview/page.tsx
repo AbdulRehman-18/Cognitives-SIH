@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { AdminNav } from "@/components/admin-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default async function AdminOverviewPage() {
@@ -25,7 +26,7 @@ export default async function AdminOverviewPage() {
   );
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"}>
+    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold">Workforce intelligence</h1>
