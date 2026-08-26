@@ -37,6 +37,7 @@ const tutorRequestSchema = z.object({
     )
     .min(1)
     .max(24),
+  mode: z.enum(["explain", "guide", "quiz"]).optional().default("explain"),
 });
 
 export async function POST(request: Request) {
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
         : null,
   }));
 
-  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels));
+  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels), parsed.data.mode);
 
   const provider = getAiProvider();
   const iterator = provider.streamText({
