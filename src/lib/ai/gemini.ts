@@ -41,6 +41,7 @@ export const geminiProvider: AiProvider = {
         contents,
         config: {
           responseMimeType: "application/json",
+          maxOutputTokens: opts.maxOutputTokens,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           responseSchema: jsonSchema as any,
         },

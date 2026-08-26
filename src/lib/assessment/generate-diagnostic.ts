@@ -68,6 +68,9 @@ export async function generateDiagnosticQuestions(
     schema: generatedAssessmentSchema,
     system: SYSTEM_PROMPT,
     prompt: buildPrompt(params),
+    // A diagnostic is small, but the provider SDK otherwise requests its
+    // maximum output budget (65k on OpenRouter), which exceeds free-tier limits.
+    maxOutputTokens: 4096,
     schemaName: "DiagnosticAssessment",
     schemaDescription:
       "A diagnostic assessment: one or more multiple-choice questions per requested competency.",

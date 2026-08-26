@@ -16,6 +16,8 @@ export interface GenerateObjectOptions<T> {
   schema: ZodType<T>;
   prompt: string;
   system?: string;
+  /** Keep provider requests within account output-token limits. */
+  maxOutputTokens?: number;
   /** Optional name surfaced to the provider as extra guidance. */
   schemaName?: string;
   schemaDescription?: string;
