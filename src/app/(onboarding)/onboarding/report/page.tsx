@@ -58,18 +58,18 @@ export default async function OnboardingReportPage() {
 
   return (
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
-      <div className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-10">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Your first measurement</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <div className="page-shell section-stack py-[48px] max-w-[800px] token-entrance">
+        <div className="flex flex-col gap-[8px]">
+          <h1 className="text-h1 text-foreground">Your first measurement</h1>
+          <p className="text-body text-muted-foreground">
             One domain measured, three still to go. This is a partial
             picture on purpose — the rest fills in as you keep assessing.
           </p>
         </div>
 
         {justMeasured && measuredDomain ? (
-          <Card className="rounded-md">
-            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <Card>
+            <CardContent className="flex flex-col gap-[24px] sm:flex-row sm:items-center">
               <CaliperGauge
                 value={justMeasured.currentScore != null ? Number(justMeasured.currentScore) : null}
                 min={0}
@@ -77,19 +77,19 @@ export default async function OnboardingReportPage() {
                 srLabel={justMeasured.competency.name}
                 unitLabel="of 100"
               />
-              <div>
-                <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              <div className="flex flex-col gap-[4px]">
+                <span className="text-eyebrow text-muted-foreground">
                   {measuredDomain.domainName}
                 </span>
-                <h2 className="text-base font-medium text-foreground">{justMeasured.competency.name}</h2>
+                <h2 className="text-h3 text-foreground">{justMeasured.competency.name}</h2>
                 <ScoreReadout level={measuredDomain.level} label="Measured level" />
               </div>
             </CardContent>
           </Card>
         ) : null}
 
-        <div>
-          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground uppercase">
+        <div className="flex flex-col gap-[16px]">
+          <h2 className="text-eyebrow text-muted-foreground">
             All four domains
           </h2>
           <DomainMatrix
