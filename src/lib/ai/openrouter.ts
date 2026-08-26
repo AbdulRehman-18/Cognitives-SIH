@@ -1,9 +1,9 @@
 import "server-only";
 
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateObject as aiGenerateObject } from "ai";
+import { generateObject as aiGenerateObject, streamText as aiStreamText } from "ai";
 import type { AiProvider, GenerateObjectOptions, StreamTextOptions } from "@/lib/ai/types";
-import { withAiErrorHandling } from "@/lib/ai/errors";
+import { withAiErrorHandling, classifyAiError } from "@/lib/ai/errors";
 
 // Vercel AI SDK v7 + @openrouter/ai-sdk-provider. Primary generation model is
 // google/gemini-3.7-flash; the `models` array gives automatic provider
@@ -37,9 +37,22 @@ export const openrouterProvider: AiProvider = {
   },
 
   async *streamText(opts: StreamTextOptions): AsyncIterable<string> {
-    void opts;
-    throw new Error(
-      "streamText is not implemented until Phase 7 (AI Tutor). openrouterProvider.generateObject is the only Phase 2 entry point.",
-    );
+    const openrouter = getClient();
+    try {
+      const result = aiStreamText({
+        // Same failover array as generateObject — OpenRouter tries each id
+        // in order on provider failure.
+        model: openrouter.chat(PRIMARY_MODEL, { models: FAILOVER_MODELS }),
+        messages: [
+          ...(opts.system ? ([{ role: "system" as const, content: opts.system }]) : []),
+          ...opts.messages,
+        ],
+      });
+      for await (const delta of result.textStream) {
+        yield delta;
+      }
+    } catch (error) {
+      throw classifyAiError(error);
+    }
   },
 };
