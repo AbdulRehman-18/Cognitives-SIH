@@ -35,8 +35,10 @@ export type GeneratedAssessment = z.infer<typeof generatedAssessmentSchema>;
 export const generateDiagnosticRequestSchema = z.object({
   /** Competency ids to cover. If omitted, the route derives them from the caller's role. */
   competencyIds: z.array(z.string().min(1)).min(1).max(20).optional(),
-  /** Questions per competency, default 2 (mirrors a ~10-question diagnostic across ~5 competencies). */
-  questionsPerCompetency: z.number().int().min(1).max(5).default(2),
+  /** Questions per competency, default 2 (mirrors a ~10-question diagnostic across ~5 competencies).
+   * Max raised to 8 to support the single-domain onboarding diagnostic (PRD §5.4: 5-8 questions
+   * for the one highest-weighted competency, rather than a handful spread across many). */
+  questionsPerCompetency: z.number().int().min(1).max(8).default(2),
 });
 
 export type GenerateDiagnosticRequest = z.infer<typeof generateDiagnosticRequestSchema>;
