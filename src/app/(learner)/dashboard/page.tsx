@@ -1,11 +1,23 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
+import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
 import { DomainMatrix } from "@/components/caliper/domain-matrix";
 import { buttonVariants } from "@/components/ui/button";
 
 export default async function LearnerDashboardPage() {
   const session = await requireRole("LEARNER");
+
+  // Backstop: a learner who somehow skipped onboarding cannot use the
+  // dashboard — gap analysis requires their job role's target profile.
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { roleId: true, jobRole: true },
+  });
+  if (!user?.roleId || !user.jobRole) {
+    redirect("/onboarding");
+  }
 
   return (
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>

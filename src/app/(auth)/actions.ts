@@ -38,7 +38,15 @@ export async function signInAction(
     throw error;
   }
 
-  const user = await db.user.findUnique({ where: { email: parsed.data.email } });
+  const user = await db.user.findUnique({
+    where: { email: parsed.data.email },
+    select: { role: true, roleId: true, jobRole: true },
+  });
+
+  if (user?.role === "LEARNER" && (!user.roleId || !user.jobRole)) {
+    redirect("/onboarding");
+  }
+
   redirect(defaultRouteForRole(user?.role ?? "LEARNER"));
 }
 
