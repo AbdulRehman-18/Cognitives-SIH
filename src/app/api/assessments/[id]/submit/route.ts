@@ -35,13 +35,27 @@ export async function POST(
     if (!assessment) {
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 });
     }
-    if (assessment.ownerId !== session.user.id) {
+
+    // DIAGNOSTIC assessments are generated per-learner and never shared —
+    // only their owner may submit. STANDARD (trainer-authored) assessments
+    // are shared once PUBLISHED: any learner may attempt one, tracked via
+    // this QuizAttempt row rather than Assessment.ownerId.
+    const isOwner = assessment.ownerId === session.user.id;
+    const isSharedAndPublished = assessment.type === "STANDARD" && assessment.status === "PUBLISHED";
+    if (!isOwner && !isSharedAndPublished) {
       return NextResponse.json({ error: "Not your assessment" }, { status: 403 });
     }
 
-    const questionById = new Map(assessment.questions.map((q) => [q.id, q]));
+    // Only APPROVED questions are ever answerable on a STANDARD assessment
+    // — mirrors the runner page's filter, so a stale client can't submit
+    // answers for a question that was rejected after the page loaded.
+    const answerableQuestions =
+      assessment.type === "STANDARD"
+        ? assessment.questions.filter((q) => q.reviewStatus === "APPROVED")
+        : assessment.questions;
+    const questionById = new Map(answerableQuestions.map((q) => [q.id, q]));
     const answeredIds = new Set(parsed.data.answers.map((a) => a.questionId));
-    const missing = assessment.questions.filter((q) => !answeredIds.has(q.id));
+    const missing = answerableQuestions.filter((q) => !answeredIds.has(q.id));
     if (missing.length > 0) {
       return NextResponse.json(
         { error: `Missing answers for ${missing.length} question(s).` },

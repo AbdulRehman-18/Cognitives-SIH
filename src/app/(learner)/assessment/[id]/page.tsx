@@ -22,13 +22,30 @@ export default async function AssessmentPage({
     },
   });
 
-  if (!assessment || assessment.ownerId !== session.user.id) {
+  if (!assessment) {
+    notFound();
+  }
+
+  // DIAGNOSTIC assessments are generated per-learner and never shared — only
+  // their owner may take them. STANDARD (trainer-authored, RAG-generated)
+  // assessments are shared: any learner may take a PUBLISHED one, tracked
+  // per-attempt via QuizAttempt.userId rather than Assessment.ownerId.
+  const isOwner = assessment.ownerId === session.user.id;
+  const isSharedAndPublished = assessment.type === "STANDARD" && assessment.status === "PUBLISHED";
+  if (!isOwner && !isSharedAndPublished) {
     notFound();
   }
 
   // Never send correctAnswer to the client — scoring happens server-side in
   // the submit route, against the engine, not by comparing on the client.
-  const questions: RunnerQuestion[] = assessment.questions.map((q) => ({
+  // Nothing unreviewed is ever shown to a learner (PRD §4.7/Phase 5): a
+  // STANDARD assessment only ever surfaces its APPROVED questions.
+  const visibleQuestions =
+    assessment.type === "STANDARD"
+      ? assessment.questions.filter((q) => q.reviewStatus === "APPROVED")
+      : assessment.questions;
+
+  const questions: RunnerQuestion[] = visibleQuestions.map((q) => ({
     id: q.id,
     stem: q.stem,
     options: q.optionsJson as string[],
