@@ -1,0 +1,598 @@
+// SkillForge AI — Prisma schema (Phase 1: complete data model)
+//
+// The LLM never decides a number. Every score/gap/recommendation in this
+// schema is written by deterministic code in src/lib/engines/. AI-authored
+// text (reasons, questions, tutor answers) lives alongside the computed
+// values but never replaces them. See PRD §2.5.
+//
+// Vector columns use Unsupported("vector(1536)") — Prisma has no native
+// pgvector type. Reads/writes for those columns go through $queryRaw with
+// explicit ::vector casts (see src/lib/rag). HNSW indexes are hand-written
+// into the migration SQL (see prisma/migrations) because they cannot be
+// expressed in this schema language.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth / identity
+// ─────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  LEARNER
+  TRAINER
+  ADMIN
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  passwordHash   String?
+  role           UserRole  @default(LEARNER)
+
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  roleId         String?
+  jobRole        Role?       @relation(fields: [roleId], references: [id])
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  profile              OfficerProfile?
+  userCompetencies     UserCompetency[]
+  skillGaps            SkillGap[]
+  recommendations      Recommendation[]
+  learningPaths        LearningPath[]
+  assessments          Assessment[]        @relation("AssessmentOwner")
+  quizAttempts         QuizAttempt[]
+  documents            Document[]
+  learningProgress     LearningProgress[]
+  reviewedQuestions    Question[]          @relation("QuestionReviewer")
+  auditLogs            AuditLog[]
+
+  @@index([departmentId])
+  @@index([roleId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Profile
+// ─────────────────────────────────────────────────────────────────────────
+
+model OfficerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  designation     String?
+  department      String?
+  jobRole         String?
+  yearsExperience Int?
+  education       String?
+  completeness    Int      @default(0) // 0-100, drives progressive enrichment prompts
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  history         ProfileHistory[]
+}
+
+// Append-only: a profile update must never silently overwrite prior evidence.
+model ProfileHistory {
+  id               String         @id @default(cuid())
+  officerProfileId String
+  officerProfile   OfficerProfile @relation(fields: [officerProfileId], references: [id], onDelete: Cascade)
+
+  field            String
+  oldValue         String?
+  newValue         String?
+  changedAt        DateTime       @default(now())
+
+  @@index([officerProfileId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Framework (seed data — never invented at request time)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DomainCode {
+  STATISTICAL
+  TECHNICAL
+  DIGITAL_GOVERNANCE
+  BEHAVIOURAL
+}
+
+model Domain {
+  id           String       @id @default(cuid())
+  code         DomainCode   @unique
+  name         String
+  description  String?
+
+  competencies Competency[]
+
+  createdAt    DateTime     @default(now())
+}
+
+model Competency {
+  id          String   @id @default(cuid())
+  name        String
+  domainId    String
+  domain      Domain   @relation(fields: [domainId], references: [id])
+  description String?
+  maxLevel    Int      @default(5)
+
+  createdAt   DateTime @default(now())
+
+  // DAG edges: this competency requires `prerequisite` first.
+  prerequisitesOf CompetencyPrerequisite[] @relation("Competency")
+  prerequisiteFor CompetencyPrerequisite[] @relation("Prerequisite")
+
+  roleCompetencies      RoleCompetency[]
+  departmentPriorities  DepartmentPriority[]
+  userCompetencies      UserCompetency[]
+  skillGaps             SkillGap[]
+  questions             Question[]
+
+  @@unique([domainId, name])
+  @@index([domainId])
+}
+
+// Self-relation forming the prerequisite DAG. Must remain acyclic — Phase 6's
+// topological sort (Kahn's algorithm) depends on this and fails loudly on a cycle.
+model CompetencyPrerequisite {
+  id              String @id @default(cuid())
+  competencyId    String
+  competency      Competency @relation("Competency", fields: [competencyId], references: [id], onDelete: Cascade)
+  prerequisiteId  String
+  prerequisite    Competency @relation("Prerequisite", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([competencyId, prerequisiteId])
+  @@index([competencyId])
+  @@index([prerequisiteId])
+}
+
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+
+  users             User[]
+  roleCompetencies  RoleCompetency[]
+
+  createdAt   DateTime @default(now())
+}
+
+// The role-specific target vector.
+model RoleCompetency {
+  id            String     @id @default(cuid())
+  roleId        String
+  role          Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  competencyId  String
+  competency    Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  requiredLevel Int        // 1-5
+  weight        Decimal    @db.Decimal(4, 3) // 0..1, importance of this competency to this role
+
+  @@unique([roleId, competencyId])
+  @@index([roleId])
+  @@index([competencyId])
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+
+  users       User[]
+  priorities  DepartmentPriority[]
+
+  createdAt   DateTime @default(now())
+}
+
+model DepartmentPriority {
+  id            String     @id @default(cuid())
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  competencyId  String
+  competency    Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  priority      Decimal    @db.Decimal(4, 3) // 0..1, feeds gap.ts weighting
+  futureDemand  Decimal?   @db.Decimal(4, 3) // 0..1, forward-looking signal
+
+  @@unique([departmentId, competencyId])
+  @@index([departmentId])
+  @@index([competencyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Measurement — every score is deterministic and shows its evidence
+// ─────────────────────────────────────────────────────────────────────────
+
+model UserCompetency {
+  id             String     @id @default(cuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  competencyId   String
+  competency     Competency @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+
+  // null = zero evidence = "Not yet assessed". Never a fabricated 0.
+  currentScore   Decimal?   @db.Decimal(5, 2)
+  confidence     Decimal?   @db.Decimal(4, 3)
+  lastComputedAt DateTime?
+  evidenceJson   Json?      // snapshot of the formula inputs/outputs at compute time
+
+  evidence       CompetencyEvidence[]
+  skillGaps      SkillGap[]
+
+  @@unique([userId, competencyId])
+  @@index([userId])
+  @@index([competencyId])
+}
+
+enum EvidenceSourceType {
+  ASSESSMENT
+  PRIOR_TRAINING
+  COURSE_COMPLETION
+}
+
+// Every score's evidence is a queryable row — satisfies "score displays its
+// evidence" (§4.3). EvidenceDrawer reads directly from this table.
+model CompetencyEvidence {
+  id               String             @id @default(cuid())
+  userCompetencyId String
+  userCompetency   UserCompetency     @relation(fields: [userCompetencyId], references: [id], onDelete: Cascade)
+
+  sourceType       EvidenceSourceType
+  sourceId         String             // e.g. QuizAttempt.id, or an external training record id
+  contribution     Decimal            @db.Decimal(5, 2) // this evidence's computed sub-score
+  weight           Decimal            @db.Decimal(4, 3) // weight applied by the formula
+
+  createdAt        DateTime           @default(now())
+
+  @@index([userCompetencyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Gaps / recommendations / paths
+// ─────────────────────────────────────────────────────────────────────────
+
+enum GapSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model SkillGap {
+  id             String      @id @default(cuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  competencyId   String
+  competency     Competency  @relation(fields: [competencyId], references: [id], onDelete: Cascade)
+  userCompetencyId String?
+  userCompetency UserCompetency? @relation(fields: [userCompetencyId], references: [id])
+
+  currentLevel   Int
+  requiredLevel  Int
+  gapSize        Int         // max(0, requiredLevel - currentLevel)
+  severity       GapSeverity
+  reason         String?     @db.Text // LLM-written, only after severity is fixed
+  priorityScore  Decimal     @db.Decimal(6, 3) // computed
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  recommendations Recommendation[]
+  pathItems       LearningPathItem[]
+
+  // One current gap row per (user, competency) — recomputing overwrites in
+  // place via upsert rather than accumulating stale duplicate rows.
+  @@unique([userId, competencyId])
+  @@index([userId])
+  @@index([competencyId])
+  @@index([severity])
+}
+
+enum CourseSource {
+  IGOT
+  NSSTA
+}
+
+model Course {
+  id             String       @id @default(cuid())
+  source         CourseSource
+  title          String
+  description    String?      @db.Text
+  competencies   String[]     // competency ids this course targets
+  level          Int          // 1-5 target difficulty
+  durationHours  Decimal      @db.Decimal(5, 1)
+  externalUrl    String?
+
+  /// vector(1536) — see prisma/migrations for HNSW index (hand-written SQL)
+  embedding      Unsupported("vector(1536)")?
+
+  createdAt      DateTime     @default(now())
+
+  recommendations Recommendation[]
+  pathItems       LearningPathItem[]
+}
+
+model Recommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  gapId       String
+  gap         SkillGap @relation(fields: [gapId], references: [id], onDelete: Cascade)
+
+  score       Decimal  @db.Decimal(6, 4) // hybrid ranking score, 0..1
+  reasonsJson Json     // per-factor breakdown: semantic, severity, relevance, prereq, difficulty, deptPriority
+  status      String   @default("SUGGESTED") // SUGGESTED | ACCEPTED | DISMISSED | COMPLETED
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([gapId])
+}
+
+model LearningPath {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  items       LearningPathItem[]
+}
+
+model LearningPathItem {
+  id             String       @id @default(cuid())
+  learningPathId String
+  learningPath   LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  gapId          String
+  gap            SkillGap     @relation(fields: [gapId], references: [id])
+  courseId       String
+  course         Course       @relation(fields: [courseId], references: [id])
+
+  order          Int
+  weekNumber     Int
+  rationale      String?      @db.Text
+
+  @@index([learningPathId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Assessment
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AssessmentType {
+  DIAGNOSTIC
+  STANDARD
+  POST_LEARNING
+}
+
+model Assessment {
+  id           String         @id @default(cuid())
+  ownerId      String
+  owner        User           @relation("AssessmentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  type         AssessmentType
+  competencies String[]       // competency ids covered
+  status       String         @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  questions    Question[]
+  attempts     QuizAttempt[]
+}
+
+enum QuestionReviewStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+model Question {
+  id              String                @id @default(cuid())
+  assessmentId    String
+  assessment      Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  competencyId    String
+  competency      Competency            @relation(fields: [competencyId], references: [id])
+
+  stem            String                @db.Text
+  optionsJson     Json                  // array of 4 options
+  correctAnswer   String
+  explanation     String?               @db.Text
+  difficulty      Decimal               @db.Decimal(3, 2) // 0..1
+
+  // Traceability (§4.7): every generated question carries the source chunk
+  // it was grounded in. Never null for RAG-generated questions.
+  sourceChunkId   String?
+  sourceChunk     DocumentChunk?        @relation(fields: [sourceChunkId], references: [id])
+
+  reviewStatus    QuestionReviewStatus  @default(DRAFT)
+  reviewerId      String?
+  reviewer        User?                 @relation("QuestionReviewer", fields: [reviewerId], references: [id])
+
+  createdAt       DateTime              @default(now())
+
+  answers         QuizAnswer[]
+
+  @@index([assessmentId])
+  @@index([competencyId])
+  @@index([sourceChunkId])
+}
+
+model QuizAttempt {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  startedAt    DateTime   @default(now())
+  submittedAt  DateTime?
+  score        Decimal?   @db.Decimal(5, 2)
+
+  answers      QuizAnswer[]
+
+  @@index([userId])
+  @@index([assessmentId])
+}
+
+model QuizAnswer {
+  id            String      @id @default(cuid())
+  quizAttemptId String
+  quizAttempt   QuizAttempt @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      Question    @relation(fields: [questionId], references: [id])
+
+  selectedAnswer String
+  isCorrect      Boolean
+
+  answeredAt     DateTime   @default(now())
+
+  @@index([quizAttemptId])
+  @@index([questionId])
+}
+
+model LearningProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId     String?
+  status       String   @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  progressPct  Decimal  @db.Decimal(5, 2) @default(0)
+
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RAG
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DocumentProcessingStatus {
+  PENDING
+  EXTRACTING
+  CHUNKING
+  EMBEDDING
+  READY
+  FAILED
+}
+
+model Document {
+  id                 String                    @id @default(cuid())
+  ownerId            String
+  owner              User                      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  uploadThingKey     String
+  uploadThingUrl     String
+  type               String                    // mime type / extension
+  processingStatus   DocumentProcessingStatus  @default(PENDING)
+  errorMessage       String?
+  chunkCount         Int                       @default(0)
+
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  chunks             DocumentChunk[]
+
+  @@index([ownerId])
+}
+
+model DocumentChunk {
+  id           String       @id @default(cuid())
+  documentId   String
+  document     Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  content      String       @db.Text
+  chunkIndex   Int
+  tokenCount   Int
+
+  /// vector(1536) — see prisma/migrations for HNSW index (hand-written SQL)
+  embedding    Unsupported("vector(1536)")
+
+  createdAt    DateTime     @default(now())
+
+  questions    Question[]
+
+  @@index([documentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  actor        User?    @relation(fields: [actorId], references: [id])
+
+  action       String
+  resourceType String
+  resourceId   String?
+  metadataJson Json?
+
+  createdAt    DateTime @default(now())
+
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
