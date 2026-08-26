@@ -11,6 +11,7 @@ import "dotenv/config";
 import { PrismaClient, type DomainCode } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { COURSE_CATALOG } from "./course-catalog";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
@@ -404,6 +405,52 @@ async function main() {
       departmentId: departmentIdByName.get("Data Informatics & Innovation Division (DIID)"),
     },
   });
+
+  console.log("\nSeeding course catalog (real iGOT / NSSTA data)…");
+  // Validate every referenced competency name against the taxonomy BEFORE
+  // writing anything — a typo'd name must fail loudly, not silently narrow
+  // the catalog.
+  for (const course of COURSE_CATALOG) {
+    for (const competencyName of course.competencies) {
+      if (!competencyIdByName.has(competencyName)) {
+        throw new Error(
+          `Course "${course.title}" references unknown competency "${competencyName}". Fix prisma/course-catalog.ts.`,
+        );
+      }
+    }
+  }
+  for (const course of COURSE_CATALOG) {
+    const existing = await db.course.findFirst({
+      where: { source: course.source, title: course.title },
+      select: { id: true },
+    });
+    if (existing) {
+      await db.course.update({
+        where: { id: existing.id },
+        data: {
+          description: course.description,
+          competencies: course.competencies.map((name) => competencyIdByName.get(name)!),
+          level: course.level,
+          durationHours: course.durationHours,
+          externalUrl: course.externalUrl ?? null,
+        },
+      });
+    } else {
+      await db.course.create({
+        data: {
+          source: course.source,
+          title: course.title,
+          description: course.description,
+          competencies: course.competencies.map((name) => competencyIdByName.get(name)!),
+          level: course.level,
+          durationHours: course.durationHours,
+          externalUrl: course.externalUrl ?? null,
+        },
+      });
+    }
+  }
+  console.log(`  ${COURSE_CATALOG.length} courses seeded.`);
+  console.log("  (Run `pnpm db:embed-courses` to embed them for semantic ranking.)");
 
   console.log("\nSeed complete.");
   console.log("Demo accounts (password for all: " + DEMO_PASSWORD + "):");
