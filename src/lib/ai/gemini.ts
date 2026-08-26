@@ -3,7 +3,7 @@ import "server-only";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import type { AiProvider, GenerateObjectOptions, StreamTextOptions } from "@/lib/ai/types";
-import { AiError, withAiErrorHandling } from "@/lib/ai/errors";
+import { AiError, withAiErrorHandling, classifyAiError } from "@/lib/ai/errors";
 
 // Direct Gemini implementation of AiProvider, selected by AI_PROVIDER=gemini.
 // Same generateObject contract as openrouter.ts: Zod schema in, validated
@@ -76,9 +76,24 @@ export const geminiProvider: AiProvider = {
   },
 
   async *streamText(opts: StreamTextOptions): AsyncIterable<string> {
-    void opts;
-    throw new Error(
-      "streamText is not implemented until Phase 7 (AI Tutor). geminiProvider.generateObject is the only Phase 2 entry point.",
-    );
+    const ai = getClient();
+    try {
+      const stream = await ai.models.generateContentStream({
+        model: GENERATION_MODEL,
+        contents: opts.messages.map((message) => ({
+          role: message.role === "assistant" ? ("model" as const) : ("user" as const),
+          parts: [{ text: message.content }],
+        })),
+        config: {
+          systemInstruction: opts.system,
+        },
+      });
+      for await (const chunk of stream) {
+        const delta = chunk.text;
+        if (delta) yield delta;
+      }
+    } catch (error) {
+      throw classifyAiError(error);
+    }
   },
 };
