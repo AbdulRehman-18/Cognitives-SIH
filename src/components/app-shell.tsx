@@ -5,10 +5,13 @@ import { SignOutButton } from "@/components/sign-out-button";
 export function AppShell({
   roleLabel,
   userName,
+  nav,
   children,
 }: {
   roleLabel: string;
   userName: string;
+  /** Optional top tab-nav row rendered below the header (e.g. LearnerNav). */
+  nav?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -32,6 +35,7 @@ export function AppShell({
           <SignOutButton />
         </div>
       </header>
+      {nav}
       <main className="flex-1">{children}</main>
     </div>
   );
