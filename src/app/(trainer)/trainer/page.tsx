@@ -5,10 +5,11 @@ import { AppShell } from "@/components/app-shell";
 
 export default async function TrainerDashboardPage() {
   const session = await requireRole("TRAINER");
-  const [docCount, pendingQuestions, publishedAssessments, recentAttempts] = await Promise.all([
+  const [docCount, pendingQuestions, publishedAssessments, attemptCount, recentAttempts] = await Promise.all([
     db.document.count({ where: { ownerId: session.user.id } }),
     db.question.count({ where: { reviewStatus: "DRAFT", assessment: { ownerId: session.user.id } } }),
     db.assessment.count({ where: { ownerId: session.user.id, status: "PUBLISHED" } }),
+    db.quizAttempt.count({ where: { assessment: { ownerId: session.user.id }, submittedAt: { not: null } } }),
     db.quizAttempt.findMany({ where: { assessment: { ownerId: session.user.id } }, orderBy: { submittedAt: "desc" }, take: 5, include: { assessment: { select: { id: true } } } }),
   ]);
 
@@ -35,10 +36,11 @@ export default async function TrainerDashboardPage() {
     <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
       <div className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="text-xl font-semibold">Trainer overview</h1>
-        <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="mt-6 grid grid-cols-4 gap-4">
           <div className="rounded-md border border-border p-4"><p className="tabular-mono text-2xl font-semibold">{docCount}</p><p className="text-xs text-muted-foreground">Documents</p><Link href="/trainer/documents" className="text-xs underline">Manage →</Link></div>
           <div className="rounded-md border border-border p-4"><p className="tabular-mono text-2xl font-semibold">{pendingQuestions}</p><p className="text-xs text-muted-foreground">Questions to review</p><Link href="/trainer/questions" className="text-xs underline">Review →</Link></div>
           <div className="rounded-md border border-border p-4"><p className="tabular-mono text-2xl font-semibold">{publishedAssessments}</p><p className="text-xs text-muted-foreground">Published assessments</p><Link href="/trainer/assessments" className="text-xs underline">View →</Link></div>
+          <div className="rounded-md border border-border p-4"><p className="tabular-mono text-2xl font-semibold">{attemptCount}</p><p className="text-xs text-muted-foreground">Learner performance</p><Link href="/trainer/learners" className="text-xs underline">View →</Link></div>
         </div>
         {weakTopics.length > 0 && (
           <div className="mt-6 rounded-md border border-border p-4">
