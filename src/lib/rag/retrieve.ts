@@ -89,3 +89,22 @@ export async function countChunksForDocument(documentId: string): Promise<number
   `;
   return rows[0]?.count ?? 0;
 }
+
+/**
+ * Cosine similarity between `queryText` and every embedded Course row — the
+ * semanticSimilarity term of the Recommendation Engine (engine-specifications
+ * §3), computed HERE by the RAG layer and passed INTO the pure engine as an
+ * argument (the engine itself never touches the DB or an embedding model).
+ * Returns { courseId → similarity } for all embedded courses.
+ */
+export async function courseSimilarities(queryText: string): Promise<Map<string, number>> {
+  const queryVector = pgvector.toSql(await embedQuery(queryText));
+
+  const rows = await db.$queryRaw<{ id: string; similarity: number }[]>`
+    SELECT id, 1 - (embedding <=> ${queryVector}::vector) AS similarity
+    FROM "Course"
+    WHERE embedding IS NOT NULL
+  `;
+
+  return new Map(rows.map((row) => [row.id, row.similarity]));
+}
