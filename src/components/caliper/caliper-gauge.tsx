@@ -4,26 +4,18 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface CaliperGaugeProps {
-  /** Current measured value, 0-100. `null` renders the "Not yet assessed" state. */
   value: number | null;
-  /** Target/required value, 0-100. Omit to hide the target marker. */
   target?: number;
-  /** Domain minimum/maximum for the scale — defaults to a 0-100 measured range. */
   min?: number;
   max?: number;
-  /** Severity tint for the gap band, if this gauge represents a tracked gap. */
   severity?: "critical" | "high" | "medium" | "low" | "none";
   label?: string;
-  /**
-   * Overrides the name used in the SVG's aria-label when no visible `label`
-   * is rendered (e.g. when a parent component already shows the name as a
-   * heading). Falls back to `label`, then "Competency".
-   */
   srLabel?: string;
-  /** Accessible unit description, e.g. "competency level, 1 to 5". */
   unitLabel?: string;
   className?: string;
   size?: "default" | "compact";
+  /** Skeleton loading state — pulsing 8% opacity fill */
+  loading?: boolean;
 }
 
 const SEVERITY_COLOR: Record<
@@ -31,10 +23,10 @@ const SEVERITY_COLOR: Record<
   string
 > = {
   critical: "var(--color-critical)",
-  high: "var(--color-gap)",
-  medium: "var(--color-gap)",
-  low: "var(--color-target)",
-  none: "var(--color-measure)",
+  high: "var(--color-moderate)",
+  medium: "var(--color-moderate)",
+  low: "var(--color-grow)",
+  none: "var(--color-accent)",
 };
 
 const VIEW_W = 320;
@@ -49,14 +41,6 @@ function toX(v: number, min: number, max: number) {
   return TRACK_X0 + pct * (TRACK_X1 - TRACK_X0);
 }
 
-/**
- * The signature Caliper element: a horizontal instrument scale with
- * calibration ticks, a "jaw" marking the current measured value, an
- * optional target marker, and a shaded band for the gap between them.
- *
- * Zero evidence renders a dashed "Not yet assessed" state — never a
- * fabricated 0 (PRD §4.3 acceptance criterion).
- */
 export function CaliperGauge({
   value,
   target,
@@ -68,6 +52,7 @@ export function CaliperGauge({
   unitLabel,
   className,
   size = "default",
+  loading = false,
 }: CaliperGaugeProps) {
   const reduceMotion = usePrefersReducedMotion();
   const ticks = React.useMemo(() => {
@@ -76,8 +61,8 @@ export function CaliperGauge({
   }, [min, max]);
 
   const isUnmeasured = value === null;
-  const valueX = isUnmeasured ? null : toX(value, min, max);
-  const targetX = target !== undefined ? toX(target, min, max) : null;
+  const valueX = isUnmeasured || loading ? null : toX(value, min, max);
+  const targetX = target !== undefined && !loading ? toX(target, min, max) : null;
 
   const gapBand =
     valueX !== null && targetX !== null && targetX > valueX
@@ -86,13 +71,42 @@ export function CaliperGauge({
 
   const accentColor = SEVERITY_COLOR[severity];
 
+  // Gauge fill/marker animation: 600ms entrance, once on mount, skip if reduced motion
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    // Trigger entrance on next frame so CSS transition fires
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Skeleton state
+  if (loading) {
+    return (
+      <div className={cn("w-full", size === "compact" ? "max-w-[240px]" : "", className)}>
+        {label ? (
+          <div className="mb-[8px] flex items-baseline justify-between gap-2">
+            <span className="text-eyebrow text-muted-foreground opacity-60">{label}</span>
+          </div>
+        ) : null}
+        <div
+          role="status"
+          aria-label={`${srLabel ?? label ?? "Competency"}: loading`}
+          className="h-[64px] w-full overflow-hidden rounded-[4px] bg-[color:var(--color-border-resting)]"
+          style={{ animation: reduceMotion ? undefined : "gauge-pulse 1.4s ease-in-out infinite" }}
+        >
+          <div className="h-full w-full opacity-[0.08] bg-[color:var(--color-ink)]" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("w-full", size === "compact" ? "max-w-[240px]" : "", className)}>
       {label ? (
-        <div className="mb-1.5 flex items-baseline justify-between gap-2">
-          <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <div className="mb-[8px] flex items-baseline justify-between gap-2">
+          <span className="text-eyebrow text-muted-foreground">{label}</span>
           {isUnmeasured ? (
-            <span className="text-xs font-medium text-[color:var(--color-unmeasured)]">
+            <span className="text-small text-[color:var(--color-unassessed)]">
               Not yet assessed
             </span>
           ) : null}
@@ -116,7 +130,7 @@ export function CaliperGauge({
           y1={TRACK_Y}
           x2={TRACK_X1}
           y2={TRACK_Y}
-          stroke="var(--color-rule)"
+          stroke="var(--color-border-resting)"
           strokeWidth={1.5}
         />
 
@@ -131,34 +145,48 @@ export function CaliperGauge({
               y1={TRACK_Y - (major ? 7 : 4)}
               x2={x}
               y2={TRACK_Y + (major ? 7 : 4)}
-              stroke="var(--color-rule)"
+              stroke="var(--color-border-resting)"
               strokeWidth={major ? 1.5 : 1}
             />
           );
         })}
 
-        {/* Gap band */}
+        {/* Gap band — animates width from 0 on mount */}
         {gapBand ? (
           <rect
             x={gapBand.x}
             y={TRACK_Y - 5}
-            width={gapBand.width}
+            width={reduceMotion ? gapBand.width : mounted ? gapBand.width : 0}
             height={10}
             fill={accentColor}
             opacity={0.16}
             rx={1}
+            style={
+              reduceMotion
+                ? undefined
+                : { transition: "width var(--duration-gauge) var(--ease-entrance)" }
+            }
           />
         ) : null}
 
-        {/* Target marker */}
+        {/* Target marker — fades in */}
         {targetX !== null ? (
-          <g>
+          <g
+            style={
+              reduceMotion
+                ? undefined
+                : {
+                    opacity: mounted ? 1 : 0,
+                    transition: "opacity var(--duration-gauge) var(--ease-entrance)",
+                  }
+            }
+          >
             <line
               x1={targetX}
               y1={TRACK_Y - 14}
               x2={targetX}
               y2={TRACK_Y + 14}
-              stroke="var(--color-target)"
+              stroke="var(--color-accent)"
               strokeWidth={1.5}
               strokeDasharray="2,2"
             />
@@ -168,7 +196,8 @@ export function CaliperGauge({
               textAnchor="middle"
               className="tabular-mono"
               fontSize={9}
-              fill="var(--color-target)"
+              fill="var(--color-accent)"
+              style={{ fontFamily: "var(--font-mono)" }}
             >
               target
             </text>
@@ -183,7 +212,7 @@ export function CaliperGauge({
               y1={TRACK_Y}
               x2={TRACK_X1}
               y2={TRACK_Y}
-              stroke="var(--color-unmeasured)"
+              stroke="var(--color-unassessed)"
               strokeWidth={2}
               strokeDasharray="4,4"
             />
@@ -191,8 +220,8 @@ export function CaliperGauge({
               cx={(TRACK_X0 + TRACK_X1) / 2}
               cy={TRACK_Y}
               r={4}
-              fill="var(--color-bg)"
-              stroke="var(--color-unmeasured)"
+              fill="var(--color-canvas)"
+              stroke="var(--color-unassessed)"
               strokeWidth={1.5}
               strokeDasharray="2,2"
             />
@@ -202,11 +231,14 @@ export function CaliperGauge({
             style={
               reduceMotion
                 ? undefined
-                : { transition: "transform 180ms ease-out" }
+                : {
+                    transform: `translate(${mounted ? valueX : TRACK_X0}px, 0)`,
+                    transition: "transform var(--duration-gauge) var(--ease-entrance)",
+                  }
             }
-            transform={`translate(${valueX}, 0)`}
+            // When reduced motion, render directly at final position
+            transform={reduceMotion ? `translate(${valueX}, 0)` : undefined}
           >
-            {/* Caliper jaw: a downward tick with a small foot, like a measuring jaw */}
             <line x1={0} y1={TRACK_Y - 16} x2={0} y2={TRACK_Y + 4} stroke={accentColor} strokeWidth={2} />
             <path
               d={`M -5 ${TRACK_Y + 4} L 5 ${TRACK_Y + 4} L 0 ${TRACK_Y + 10} Z`}
@@ -231,12 +263,9 @@ function getReducedMotionSnapshot() {
 }
 
 function usePrefersReducedMotion() {
-  // useSyncExternalStore is the correct primitive for reading browser state
-  // that can change outside React's render cycle (PRD requires full
-  // prefers-reduced-motion compliance without setState-in-effect churn).
   return React.useSyncExternalStore(
     subscribeReducedMotion,
     getReducedMotionSnapshot,
-    () => false, // server snapshot — SSR always assumes motion is fine
+    () => false,
   );
 }

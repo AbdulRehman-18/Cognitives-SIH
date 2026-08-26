@@ -44,13 +44,31 @@ export interface TutorCitation extends RetrievedChunk {
  * markers that map onto SourceChunkCard rendering, calibration to the
  * officer's measured level, and non-judgmental tone (PRODUCT.md voice).
  */
-export function buildTutorSystemPrompt(citations: TutorCitation[], learnerContext: string): string {
+export type TutorMode = "explain" | "guide" | "quiz";
+
+export function buildTutorSystemPrompt(citations: TutorCitation[], learnerContext: string, mode: TutorMode = "explain"): string {
   const chunksBlock = citations
     .map(
       (c) =>
         `[${c.marker}] (document chunk ${c.chunkIndex}${c.documentTitle ? ` of "${c.documentTitle}"` : ""}, similarity ${c.similarity.toFixed(3)})\n${c.content}`,
     )
     .join("\n\n---\n\n");
+
+  const modeBlock =
+    mode === "guide"
+      ? [
+          "MODE: GUIDED (Socratic). Do NOT give the full answer. Ask ONE probing question at a time, wait for the learner's attempt, then give a nudge. Use 2-3 turns to build to the answer. End each turn with a single check.",
+          "FORMAT: Start with 'Step 1 —' framing, then question. Cite [n] for any claim.",
+        ].join("\n")
+      : mode === "quiz"
+        ? [
+            "MODE: QUIZ. Generate ONE MCQ with 4 options (A-D), one correct answer, and a brief explanation. Cite [n] for the fact tested.",
+            "FORMAT:\nQuestion: ...\nA) ...\nB) ...\nC) ...\nD) ...\nAnswer: X\nWhy: ...",
+          ].join("\n")
+        : [
+            "MODE: EXPLAIN. Teach in 2-3 labelled steps (Step 1, Step 2...). Each step one idea, one citation cluster. End with a single comprehension check question.",
+            "FORMAT: Keep each step to 2-3 sentences. End with: 'Check — <one question>?'",
+          ].join("\n");
 
   return [
     "You are the SkillForge AI Tutor for MoSPI statistical officers. You answer questions about official statistics training material.",
@@ -60,6 +78,8 @@ export function buildTutorSystemPrompt(citations: TutorCitation[], learnerContex
     "- Cite the chunk you used with its [number] marker at the end of each claim it supports.",
     "- If the chunks don't contain the answer, say so plainly and do not fill gaps from general knowledge.",
     "- Never invent numbers, formulas, or facts not present in a cited chunk. You may rephrase and explain what IS there.",
+    "",
+    modeBlock,
     "",
     `LEARNER CONTEXT (calibrate to this — ${learnerContext})`,
     "",

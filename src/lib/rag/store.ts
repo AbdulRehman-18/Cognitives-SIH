@@ -1,6 +1,7 @@
 import "server-only";
 
 import pgvector from "pgvector";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db/client";
 import { EMBEDDING_DIMENSIONS } from "@/lib/rag/embed";
 import type { TextChunk } from "@/lib/rag/chunk";
@@ -32,11 +33,21 @@ function assertValidVector(vector: number[], context: string): void {
   }
 }
 
+// A real document can easily produce 50-300+ chunks. Inserting one row per
+// chunk (one network round-trip each) inside a single interactive
+// transaction was reliably blowing past Prisma's 5000ms default
+// interactive-transaction timeout on anything but a tiny document — every
+// upload of a normal-sized PDF failed at this stage. Batching rows into a
+// single multi-row INSERT per batch keeps round-trips proportional to
+// batch count, not chunk count, and stays well inside the timeout below.
+const INSERT_BATCH_SIZE = 200;
+
 /**
  * Persists a document's chunks + embeddings. Validates every vector's shape
  * before it ever reaches a query (validate, then interpolate — the
  * documented safe pattern in docs/pgvector-prisma-notes.md when going
- * through a driver adapter). Uses one INSERT per chunk inside a transaction
+ * through a driver adapter). Batched multi-row INSERTs inside a single
+ * transaction (explicit generous timeout — see INSERT_BATCH_SIZE comment)
  * so a failure partway through doesn't leave a document half-indexed.
  */
 export async function storeDocumentChunks(
@@ -49,19 +60,34 @@ export async function storeDocumentChunks(
     assertValidVector(chunk.embedding, `chunk ${chunk.chunkIndex} of document ${documentId}`);
   }
 
-  await db.$transaction(async (tx) => {
-    for (const chunk of chunks) {
-      const embeddingSql = pgvector.toSql(chunk.embedding); // string, never a JS array — rule #1
-      const id = crypto.randomUUID();
-      await tx.$executeRaw`
-        INSERT INTO "DocumentChunk" (id, "documentId", content, "chunkIndex", "tokenCount", embedding, "createdAt")
-        VALUES (${id}, ${documentId}, ${chunk.content}, ${chunk.chunkIndex}, ${chunk.tokenCount}, ${embeddingSql}::vector, now())
-      `;
-    }
+  const batches: ChunkToStore[][] = [];
+  for (let i = 0; i < chunks.length; i += INSERT_BATCH_SIZE) {
+    batches.push(chunks.slice(i, i + INSERT_BATCH_SIZE));
+  }
 
-    await tx.document.update({
-      where: { id: documentId },
-      data: { chunkCount: chunks.length },
-    });
-  });
+  await db.$transaction(
+    async (tx) => {
+      for (const batch of batches) {
+        const rows = batch.map((chunk) => {
+          const embeddingSql = pgvector.toSql(chunk.embedding); // string, never a JS array — rule #1
+          const id = crypto.randomUUID();
+          return Prisma.sql`(${id}, ${documentId}, ${chunk.content}, ${chunk.chunkIndex}, ${chunk.tokenCount}, ${embeddingSql}::vector, now())`;
+        });
+
+        await tx.$executeRaw`
+          INSERT INTO "DocumentChunk" (id, "documentId", content, "chunkIndex", "tokenCount", embedding, "createdAt")
+          VALUES ${Prisma.join(rows)}
+        `;
+      }
+
+      await tx.document.update({
+        where: { id: documentId },
+        data: { chunkCount: chunks.length },
+      });
+    },
+    // Explicit, generous timeout — well beyond Prisma's 5000ms default —
+    // since even batched, a very large document can take a few batches.
+    { timeout: 30_000, maxWait: 10_000 },
+  );
 }
+

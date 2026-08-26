@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-// Admin equivalent of LearnerNav — top tab-based nav for the org →
-// department → role → skill drill-down surfaces (PRD §4.10).
 const TABS = [
   { label: "Overview", href: "/admin/overview" },
   { label: "Departments", href: "/admin/departments" },
@@ -17,7 +15,7 @@ export function AdminNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center gap-1 border-b border-border px-6" aria-label="Admin navigation">
+    <nav className="flex items-center gap-[16px] border-b border-[color:var(--color-border-resting)] px-[20px] lg:px-[64px]" aria-label="Admin navigation">
       {TABS.map((tab) => {
         const active = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
         return (
@@ -26,14 +24,20 @@ export function AdminNav() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative px-3 py-3 text-sm font-medium transition-colors",
-              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+              "relative px-[12px] py-[12px] text-small transition-colors duration-[120ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+              active
+                ? "text-foreground font-semibold opacity-100"
+                : "text-muted-foreground opacity-60 hover:opacity-80 hover:text-foreground font-medium",
             )}
           >
             {tab.label}
-            {active ? (
-              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[color:var(--color-measure)]" />
-            ) : null}
+            <span
+              className={cn(
+                "absolute inset-x-[12px] bottom-0 h-[2px] rounded-full bg-[color:var(--color-accent)] transition-opacity duration-[200ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+                active ? "opacity-100" : "opacity-0"
+              )}
+              aria-hidden
+            />
           </Link>
         );
       })}

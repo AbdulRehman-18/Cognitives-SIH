@@ -4,21 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-// Priority 6 — top tab-based nav replacing the ad-hoc "click a card to find
-// the next screen" pattern. Four tabs, matching the PRD's learner surface
-// area exactly: Overview (dashboard), Gap Report, Learning Path, Tutor.
 const TABS = [
   { label: "Overview", href: "/dashboard" },
   { label: "Gap Report", href: "/gaps" },
   { label: "Learning Path", href: "/path" },
   { label: "Tutor", href: "/tutor" },
+  { label: "Profile", href: "/profile" },
 ] as const;
 
 export function LearnerNav() {
   const pathname = usePathname();
-
   return (
-    <nav className="flex items-center gap-1 border-b border-border px-6" aria-label="Learner navigation">
+    <nav className="flex items-center gap-[4px] border-b border-[color:var(--color-border-resting)] px-[16px] lg:px-[32px] overflow-x-auto" aria-label="Learner navigation">
       {TABS.map((tab) => {
         const active = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
         return (
@@ -27,17 +24,15 @@ export function LearnerNav() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative px-3 py-3 text-sm font-medium transition-colors",
-              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+              "relative whitespace-nowrap rounded-full px-[14px] py-[7px] my-[8px] text-small font-medium transition-colors duration-[120ms]",
+              active ? "bg-[color:var(--color-accent)] text-white shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-[color:var(--color-surface-1)]"
             )}
           >
             {tab.label}
-            {active ? (
-              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[color:var(--color-measure)]" />
-            ) : null}
           </Link>
         );
       })}
+      <Link href="/settings" className={cn("ml-auto hidden md:inline-flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[6px] text-[12px] font-medium text-muted-foreground hover:text-foreground", pathname === "/settings" ? "bg-foreground text-white border-transparent" : "")}>Settings</Link>
     </nav>
   );
 }

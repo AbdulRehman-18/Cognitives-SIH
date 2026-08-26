@@ -3,113 +3,43 @@ import { CaliperGauge } from "@/components/caliper/caliper-gauge";
 import { Button } from "@/components/ui/button";
 
 export type GapSeverity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-
 export interface GapCardProps {
   competencyName: string;
   domainName: string;
   currentLevel: number | null;
   requiredLevel: number;
   severity: GapSeverity;
-  /** LLM-written, plain-language reason — generated only after severity is fixed. */
   reason?: string;
   primaryActionLabel?: string;
   onPrimaryAction?: () => void;
   className?: string;
+  loading?: boolean;
 }
-
-const SEVERITY_META: Record<
-  GapSeverity,
-  { label: string; gaugeSeverity: "critical" | "high" | "medium" | "low"; chipClass: string }
-> = {
-  CRITICAL: {
-    label: "Critical",
-    gaugeSeverity: "critical",
-    chipClass:
-      "bg-[color-mix(in_oklch,var(--color-critical),transparent_85%)] text-[color:var(--color-critical)]",
-  },
-  HIGH: {
-    label: "High",
-    gaugeSeverity: "high",
-    chipClass:
-      "bg-[color-mix(in_oklch,var(--color-gap),transparent_85%)] text-[color:var(--color-gap)]",
-  },
-  MEDIUM: {
-    label: "Medium",
-    gaugeSeverity: "medium",
-    chipClass:
-      "bg-[color-mix(in_oklch,var(--color-gap),transparent_90%)] text-[color:var(--color-gap)]",
-  },
-  LOW: {
-    label: "Room to grow",
-    gaugeSeverity: "low",
-    chipClass:
-      "bg-[color-mix(in_oklch,var(--color-target),transparent_88%)] text-[color:var(--color-target)]",
-  },
+const META: Record<GapSeverity, { label: string; gauge: "critical" | "high" | "medium" | "low"; bar: string; bg: string; chip: string }> = {
+  CRITICAL: { label: "Critical", gauge: "critical", bar: "var(--color-critical)", bg: "rgba(240,68,56,0.07)", chip: "bg-[rgba(240,68,56,0.10)] text-[#C9190B] border-[rgba(240,68,56,0.18)]" },
+  HIGH: { label: "High", gauge: "high", bar: "var(--color-moderate)", bg: "rgba(247,144,9,0.07)", chip: "bg-[rgba(247,144,9,0.12)] text-[#8A4D00] border-[rgba(247,144,9,0.18)]" },
+  MEDIUM: { label: "Medium", gauge: "medium", bar: "var(--color-moderate)", bg: "rgba(247,144,9,0.06)", chip: "bg-[rgba(247,144,9,0.10)] text-[#8A4D00] border-[rgba(247,144,9,0.18)]" },
+  LOW: { label: "Room to Grow", gauge: "low", bar: "var(--color-grow)", bg: "rgba(18,183,106,0.06)", chip: "bg-[rgba(18,183,106,0.10)] text-[#0E7A4B] border-[rgba(18,183,106,0.18)]" },
 };
 
-/**
- * A single flagged gap: severity chip, the CaliperGauge showing current vs.
- * target level, the LLM-authored plain-language reason, and one clear
- * primary action. Language stays non-judgmental — severity labels describe
- * priority, not a deficiency score.
- */
-export function GapCard({
-  competencyName,
-  domainName,
-  currentLevel,
-  requiredLevel,
-  severity,
-  reason,
-  primaryActionLabel = "View recommended course",
-  onPrimaryAction,
-  className,
-}: GapCardProps) {
-  const meta = SEVERITY_META[severity];
-
+export function GapCard({ competencyName, domainName, currentLevel, requiredLevel, severity, reason, primaryActionLabel = "View recommended course", onPrimaryAction, className, loading = false }: GapCardProps) {
+  const m = META[severity];
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-4 rounded-md border border-border bg-card p-4",
-        className,
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
+    <div className={cn("relative flex flex-col gap-[14px] overflow-hidden rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px] shadow-[var(--shadow-card)] transition-all duration-[200ms] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-[1px]", className)} style={{ backgroundColor: `color-mix(in srgb, ${m.bg} 100%, var(--color-surface-1))` } as React.CSSProperties}>
+      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: m.bar }} />
+      <div className="flex items-start justify-between gap-[12px] pl-[4px]">
         <div>
-          <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            {domainName}
-          </span>
-          <h3 className="text-base font-medium text-foreground">{competencyName}</h3>
+          <p className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">{domainName}</p>
+          <h3 className="text-[16px] font-semibold tracking-[-0.01em] leading-tight mt-[2px]">{competencyName}</h3>
+          <p className="num text-[11px] tabular-mono text-muted-foreground mt-[4px]">Lv {currentLevel ?? "—"} → Lv {requiredLevel} required</p>
         </div>
-        <span
-          className={cn(
-            "shrink-0 rounded-sm px-2 py-0.5 text-xs font-medium",
-            meta.chipClass,
-          )}
-        >
-          {meta.label}
-        </span>
+        <span className={cn("shrink-0 rounded-full px-[10px] py-[4px] text-[11px] font-semibold tracking-wide border", m.chip)}>{m.label}</span>
       </div>
-
-      <CaliperGauge
-        value={currentLevel}
-        target={requiredLevel}
-        min={0}
-        max={5}
-        severity={meta.gaugeSeverity}
-        srLabel={competencyName}
-        unitLabel="/ 5"
-        size="compact"
-      />
-
-      {reason ? (
-        <p className="text-sm text-muted-foreground">{reason}</p>
-      ) : null}
-
-      {onPrimaryAction ? (
-        <Button size="sm" onClick={onPrimaryAction} className="w-fit">
-          {primaryActionLabel}
-        </Button>
-      ) : null}
+      <div className="pl-[4px]">
+        <CaliperGauge value={currentLevel} target={requiredLevel} min={0} max={5} severity={m.gauge} srLabel={competencyName} unitLabel="/ 5" size="compact" loading={loading} />
+      </div>
+      {reason ? <p className="text-small leading-relaxed text-muted-foreground pl-[4px] border-l-2 pl-[10px]" style={{ borderColor: m.bar }}>{reason}</p> : null}
+      {onPrimaryAction ? <div className="pl-[4px]"><Button size="sm" onClick={onPrimaryAction} className="rounded-full">{primaryActionLabel}</Button></div> : null}
     </div>
   );
 }
