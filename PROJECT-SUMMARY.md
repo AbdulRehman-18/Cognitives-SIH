@@ -1,13 +1,14 @@
 # SkillForge AI — Project Summary & Agent Onboarding
 
 **Read this first if you are an agent picking up this project.**
-Then read `RestPlan.md` (Phases 4–8, your actual work), then the reference docs in `docs/`.
+Then read `RestPlan.md` — Phases 4–5 are now built (§2–§3 are historical context, not open work), so **your actual starting point is `RestPlan.md` §4, Phase 6** — then the reference docs in `docs/`.
 
 - **Project:** SkillForge AI — Smart India Hackathon 2026, Problem Statement **SIH26101** (MoSPI / DIID)
 - **Repo:** `/Users/abdulrehman/Developer/Cognitives-SIH`
 - **Owner:** Abdul Rehman (Team Lead)
-- **Status at handoff:** Phases 1–3 of 8 complete, built and independently verified. Phases 4–8 remain.
-- **Scale:** 80 TypeScript files, ~7,100 lines, 47 passing tests, build + lint clean.
+- **Status at handoff:** Phases 1–5 of 8 complete and build/lint/test-clean. Phases 4–5 (this pass) were built against **zero live infrastructure** — no Neon DB, no Gemini/OpenRouter keys, no UploadThing token existed in the build environment, so nothing in them has run end-to-end yet. See §4 "What was built (Phases 4–5)" for exactly what that does and doesn't cover. **Phases 6–8 remain — read `RestPlan.md` §4–6, which is still current for that work.**
+- **Scale:** ~100 TypeScript files, ~9,000 lines, 55 passing tests (47 engine/architecture + 8 new RAG-chunking tests), build + lint clean.
+- **New dependencies since Phase 3:** `pgvector`, `officeparser`, `uploadthing`, `@uploadthing/react`, `gpt-tokenizer` (see §4 Phase 4 for why `pdf-parse`/`mammoth` from the original plan were dropped in favor of `officeparser` alone).
 
 ---
 
@@ -100,7 +101,7 @@ import { db } from "@/lib/db/client";   // ✅ always
 
 ---
 
-## 4. What was built (Phases 1–3)
+## 4. What was built (Phases 1–5)
 
 ### Phase 1 — Foundation
 Next 16 + TS + Tailwind 4 + shadcn scaffold in place. **Complete Prisma schema for all 8 phases** (not just 1–3), init migration with `CREATE EXTENSION vector` and two hand-written HNSW indexes. Auth.js v5 with Credentials + JWT sessions, `proxy.ts` route protection, `requireRole`/`requireRoleApi` RBAC helpers. Seed data: 4 domains, 33 competencies, an acyclic prerequisite DAG (26 edges), 5 departments, 5 roles with genuinely distinct target vectors, 3 demo users. Full "Caliper" design system + 7 primitives.
@@ -111,7 +112,17 @@ The AI adapter (`AiProvider` interface, OpenRouter + Gemini implementations, typ
 ### Phase 3 — Skill Gap Engine
 `src/lib/engines/gap.ts` with exact severity thresholds. LLM gap reasoning in a **separate** module (`src/lib/gap-reasoning/`, deliberately outside `lib/engines/`), generated *after* severity is fixed, with a deterministic template fallback. Learner gap dashboard + the "How is this calculated?" disclosure.
 
-### What I verified myself (not taken on trust)
+### Phase 4 — Document & RAG Pipeline
+`src/lib/rag/`: `chunk.ts` (pure, deterministic, ~500-token/15%-overlap paragraph-boundary chunker — the only Phase 4/5 module that's a genuine unit-testable pure function; 8 tests in `tests/rag/chunk.test.ts`), `embed.ts` (Gemini direct, `gemini-embedding-001`, `outputDimensionality: 1536`, **manual L2-normalization** — this model does not auto-normalize below 3072 dims, and skipping it makes cosine similarity silently wrong), `extract.ts`, `store.ts`, `retrieve.ts`, `pipeline.ts` (orchestrates extract→chunk→embed→store, advancing `Document.processingStatus` stage-by-stage with a stage-specific error on failure). UploadThing wired end-to-end: `src/app/api/uploadthing/core.ts` (RBAC'd to TRAINER, creates the `Document` row on upload complete) + route handler + typed client hooks (`src/lib/uploadthing.ts`). Trainer UI at `/trainer/documents` — upload, a polling document list against real `processingStatus`, retry-on-failure, reusing `ProcessingState` unmodified.
+
+**Deliberate deviation from RestPlan.md:** the plan specified `pdf-parse` (PDF) + `mammoth` (DOCX) as separate extractors. I consolidated both into **`officeparser` alone**, which parses PDF/DOCX/PPTX through one unified API (`parseOffice(buffer, {fileType}).to('text')`) — one dependency, one code path, same three formats covered. `pdf-parse` and `mammoth` were never installed. If a future agent wants to match the plan literally, this is the one library-choice deviation to know about.
+
+### Phase 5 — MCQ Generator + Assessment Engine
+`src/lib/questions/generate-mcq.ts` — retrieve-then-generate; the model cites a `sourceChunkIndex` into the exact chunk list it was handed (never a free-form id it could invent), and any question that doesn't resolve to a real chunk is discarded before it ever reaches the database — `Question.sourceChunkId` is never null for a RAG-generated row. `POST /api/questions/generate` creates a `DRAFT` `STANDARD` `Assessment` + `DRAFT` `Question` rows. Trainer review queue at `/trainer/questions` (new `SourceChunkCard` Caliper primitive shown beside every question — makes "traceable to a source chunk" a visible fact, not a hidden foreign key; inline edit; Approve/Reject via `PATCH /api/questions/[id]`). `/trainer/assessments` — generation form + `POST /api/assessments/[id]/publish`, which mechanically requires ≥1 `APPROVED` question before a `STANDARD` assessment can move to `PUBLISHED` ("nothing publishes unreviewed"). Scoring reuses `scoreCompetency` via the **existing, unmodified** Phase 2 submit route.
+
+**One deliberate schema-semantics change, not a schema migration:** the original submit route and runner page assumed every `Assessment.ownerId` was the learner taking it — true for `DIAGNOSTIC` (generated per-learner) but wrong for trainer-authored `STANDARD` quizzes, which are meant to be shared across every learner. I extended the ownership check in both `src/app/api/assessments/[id]/submit/route.ts` and `src/app/(learner)/assessment/[id]/page.tsx` to: `DIAGNOSTIC` → strict owner-only (unchanged behavior); `STANDARD` → any learner may attempt it once `status === "PUBLISHED"`, and only its `APPROVED` questions are ever shown/answerable. Added `/assessment` (learner-facing list of published quizzes) since nothing in Phases 1–3 exposed an entry point to a shared assessment. No Prisma schema or migration change was needed for this — it's app-layer authorization logic only.
+
+### What I verified myself (not taken on trust) — Phases 1–3
 
 I re-derived the math independently rather than trusting test names:
 
@@ -124,13 +135,31 @@ I re-derived the math independently rather than trusting test names:
 - **Security:** no `correctAnswer` reaches any client component (grepped every `"use client"` file); no `NEXT_PUBLIC_` secrets; all API routes enforce server-side RBAC.
 - **Engine purity:** planted a violating import — both ESLint and the architecture test caught it.
 
-### One bug I found and fixed
+### One bug I found and fixed — Phase 3
 
 Phase 3 added `@@unique([userId, competencyId])` to `SkillGap` in the schema, but it **never reached the migration SQL** — the upsert in `loadGapAnalysis` would have failed at runtime against a real database. Confirmed the drift with `prisma migrate diff`, added the index to the init migration (safe — nothing is applied anywhere yet), re-diffed: schema and migration now match exactly, with the two HNSW statements as the only intentional difference (Prisma's schema language can't express them).
 
-### One disclosure
+### One disclosure — Phase 2
 
 During Phase 2 the agent accidentally deleted `src/lib/validation/auth.ts` (untracked, unrecoverable via git) and reconstructed it from its call sites. I verified the reconstruction: both schemas present, sensible validation, single call site resolves, build clean. No loss — but you should know it happened.
+
+### What I verified myself — Phases 4–5
+
+This pass had **no live database or API keys at all** (see §1 handoff status), so verification was necessarily static, not runtime:
+
+- `pnpm build`, `pnpm lint`, `pnpm test` all pass (55/55). `next build`'s TypeScript pass caught every route/prop-typing issue across the new UploadThing, Select, and Prisma-relation code.
+- `chunkText()` — the one genuinely pure function added — has 8 dedicated tests: determinism (20 repeated runs, byte-identical), token-budget adherence, non-empty chunks only, sequential `chunkIndex`, overlap actually present across chunk boundaries, and oversized-paragraph fallback splitting.
+- Traced (didn't execute) that `sourceChunkId` is structurally guaranteed non-null for every persisted RAG-generated `Question`: `generateMcqQuestions()` filters to only chunk indices that were actually provided before returning, and the route maps the survivors straight to `chunks[i].id` — there is no code path that persists a `Question` from this flow without one.
+- Re-verified the four `pgvector` rules from `docs/pgvector-prisma-notes.md` line-by-line against `store.ts`/`retrieve.ts`: string binding via `pgvector.toSql()`, `::vector` cast on both sides, `<=>` only, `COUNT(*)::int`.
+- Confirmed the engines boundary is untouched: neither `src/lib/rag/` nor `src/lib/questions/` sits under `src/lib/engines/`, and no file under `src/lib/engines/` was edited — `tests/architecture/engines-boundary.test.ts` still passes unmodified.
+- **What is explicitly NOT verified:** any live Gemini embedding/generation call, any live UploadThing upload, any real Postgres write (including the raw `$queryRaw`/`$executeRaw` vector SQL), and therefore the entire pipeline end-to-end. The next person to get a `DATABASE_URL` + `GEMINI_API_KEY` + `UPLOADTHING_TOKEN` should treat all of Phase 4/5 as "builds clean, unexercised" until proven otherwise — see §7.
+
+### Disclosures — Phases 4–5
+
+- **Library substitution:** `pdf-parse` + `mammoth` (as named in `RestPlan.md` Phase 4) were replaced with `officeparser` alone (see §4 Phase 4 above). Functionally equivalent on paper; unverified against a real scanned/edge-case PDF.
+- **`pnpm install` reported ignored build scripts** for `@google/genai`, `msgpackr-extract`, `protobufjs`, `tesseract.js`. These are almost certainly optional native-addon fallbacks (we never enable OCR), but `pnpm approve-builds` was deliberately **not** run — that executes third-party install scripts, and I didn't want to do that without your sign-off. If something in extraction/embedding misbehaves at runtime, this is the first thing to check.
+- **Ownership-model change, no schema change:** see §4 Phase 5's "deliberate schema-semantics change" note — `STANDARD` assessments are now shared across learners while `DIAGNOSTIC` ones remain per-owner. This is app-layer logic in two files, not a migration.
+- A local `.env` was created (gitignored, contents identical to `.env.example` — no real secrets) purely so `prisma generate`/`next build` could run in this environment. Replace it with real values before running anything for real.
 
 ---
 
@@ -142,43 +171,50 @@ src/
     (auth)/sign-in, sign-up              ✅ built
     (onboarding)/onboarding              ✅ scaffolded
     (learner)/dashboard, gaps,
-              assessment/[id], new       ✅ built
+              assessment (list), [id],
+              new                        ✅ built  (assessment/ now lists PUBLISHED quizzes too)
              /path, /tutor, /courses     ⬜ Phases 6, 7
-    (trainer)/trainer/documents          ⬜ Phase 4
+    (trainer)/trainer/documents          ✅ built  (Phase 4 — upload, live status, retry)
+             /trainer/assessments        ✅ built  (Phase 5 — generate + publish)
+             /trainer/questions          ✅ built  (Phase 5 — review queue)
+             /trainer/learners           ⬜ not in any phase plan yet — placeholder only
     (admin)/admin/overview               ⬜ Phase 8
     api/
       auth/[...nextauth]                 ✅
-      assessments/generate, [id]/submit  ✅
+      assessments/generate, [id]/submit, [id]/publish  ✅  (publish added Phase 5)
       competencies/[id]/evidence         ✅
       gaps                               ✅
-      documents/[id]/process             ⬜ Phase 4
-      questions/generate                 ⬜ Phase 5
+      documents, documents/[id],
+      documents/[id]/process             ✅ built  (Phase 4)
+      questions/generate, questions/[id] ✅ built  (Phase 5)
       tutor  (streaming)                 ⬜ Phase 7
-      uploadthing                        ⬜ Phase 4
+      uploadthing                        ✅ built  (Phase 4 — core.ts file router + route handler)
     dev/                                 fixture routes — see below
   lib/
-    ai/          types, errors, openrouter, gemini, provider   ✅ (streamText stubbed)
+    ai/          types, errors, openrouter, gemini, provider   ✅ (streamText STILL stubbed — Phase 7)
     engines/     competency.ts ✅  gap.ts ✅
-                 recommendation.ts ⬜  learning-path.ts ⬜
+                 recommendation.ts ⬜  learning-path.ts ⬜  ← genuinely next; untouched by Phases 4–5
     gap-reasoning/  ✅  (LLM reasons — outside engines/ on purpose)
     assessment/     ✅  generate-diagnostic.ts
-    rag/            ⬜  Phase 4: chunk, embed, retrieve
-    auth/ db/ validation/  ✅
+    questions/      ✅  generate-mcq.ts  (Phase 5 — RAG-grounded, outside engines/ on purpose)
+    rag/            ✅  chunk.ts, embed.ts, extract.ts, store.ts, retrieve.ts, pipeline.ts  (Phase 4 — built ONCE, consumed by Phase 5 now and Phase 7 later; retrieveAcrossAllDocuments() is pre-built for Phase 7 but not wired to anything yet)
+    uploadthing.ts  ✅  (Phase 4 — typed client upload hooks)
+    auth/ db/ validation/  ✅  (validation/questions.ts added Phase 5)
   components/
-    caliper/     10 primitives ✅  (3 more in Phases 6–7)
+    caliper/     11 primitives ✅  (source-chunk-card.tsx added Phase 5; 2 more in Phase 6)
     ui/          shadcn
-prisma/   schema (all phases) + init migration + seed  ✅
-tests/    engines/ + architecture/  — 47 passing
+prisma/   schema (all phases, unchanged since Phase 1) + init migration + seed  ✅
+tests/    engines/ + architecture/ + rag/  — 55 passing (8 new chunk.ts tests)
 docs/     reference documents
 ```
 
-**The `/dev/` fixture pattern** — how UI gets built and visually verified without a live database. `/dev/caliper`, `/dev/assessment`, `/dev/assessment-results`, `/dev/gaps` exist; `src/app/dev/layout.tsx` `notFound()`s them in production. **Follow this pattern** for Phases 4–8.
+**The `/dev/` fixture pattern** — how UI gets built and visually verified without a live database. `/dev/caliper`, `/dev/assessment`, `/dev/assessment-results`, `/dev/gaps` exist; `src/app/dev/layout.tsx` `notFound()`s them in production. **Phases 4–5 did NOT add new `/dev/` fixtures** — instead their UI was verified via `pnpm build`'s full type-check across real Prisma-backed server components, since a live DB didn't exist to fixture against anyway. **Phase 6 onward should go back to the `/dev/` pattern** where a live DB still isn't available when you start.
 
 ### Caliper primitives — reuse, do not create variants
 
-Built: `caliper-gauge`, `score-readout`, `domain-matrix`, `gap-card`, `gap-dashboard`, `evidence-drawer`, `evidence-drawer-live`, `severity-formula-disclosure`, `ai-error-state`, `processing-state`.
+Built: `caliper-gauge`, `score-readout`, `domain-matrix`, `gap-card`, `gap-dashboard`, `evidence-drawer`, `evidence-drawer-live`, `severity-formula-disclosure`, `ai-error-state`, `processing-state`, `source-chunk-card` (Phase 5 — shows a question's originating chunk + similarity).
 
-Still to build: `PathTimeline` (Phase 6), `ReasonBreakdown` (Phase 6), `SourceChunkCard` (Phases 5 & 7).
+Still to build: `PathTimeline` (Phase 6), `ReasonBreakdown` (Phase 6). `SourceChunkCard` is done — reuse it in Phase 7's tutor UI too, don't build a second version.
 
 ### Design system — "The Caliper"
 
@@ -194,8 +230,8 @@ Type: **Archivo** (UI) + **IBM Plex Mono** for all numerals with `font-variant-n
 
 | File | When |
 |---|---|
-| **`RestPlan.md`** | **Your work order — Phases 4–8, with formulas and acceptance criteria.** |
-| `docs/engine-specifications.md` | **Normative.** Exact formulas for all four engines. §3–4 cover Phase 6. |
+| **`RestPlan.md`** | **Your work order.** Phases 4–5 are now built (see PROJECT-SUMMARY.md §4) — **RestPlan.md §4 (Phase 6) is where you actually start.** §2 (Phase 4) and §3 (Phase 5) are historical context now, not open TODOs. |
+| `docs/engine-specifications.md` | **Normative.** Exact formulas for all four engines. §3–4 cover Phase 6 — **read this before writing `recommendation.ts`/`learning-path.ts`.** |
 | `docs/pgvector-prisma-notes.md` | **Before writing any vector code.** Every item is a bug someone already hit. |
 | `docs/course-catalog-research.md` | ~82 real iGOT/NSSTA courses — Phase 6 seed data. |
 | `PRODUCT.md` | Brand, voice, design direction. |
@@ -212,7 +248,7 @@ Type: **Archivo** (UI) + **IBM Plex Mono** for all numerals with `font-variant-n
 
 ## 7. Before anything can be verified end-to-end
 
-**⚠️ Nothing in this project has ever run against a real database or a live model.** Phases 1–3 were verified as pure logic, types, and UI against fixtures. That verification is genuine and rigorous — but it is not the same as end-to-end.
+**⚠️ Nothing in this project has EVER run against a real database or a live model — still true after Phases 4–5.** Every phase so far was verified as pure logic, types, and UI/build/lint/test, never runtime. This is the single most important thing for the next person to fix, because Phases 4–5 specifically involve the highest-risk, least-forgiving runtime paths in the whole product (raw vector SQL, live embeddings, live file uploads) and **none of it has executed even once.**
 
 **The user must provide:**
 
@@ -227,13 +263,20 @@ Type: **Archivo** (UI) + **IBM Plex Mono** for all numerals with `font-variant-n
    ```
    Demo logins: `learner@` / `trainer@` / `admin@skillforge.demo`, password `SkillForge!2026`.
 3. **`OPENROUTER_API_KEY`** (generation) and **`GEMINI_API_KEY`** (**required** — embeddings can't use OpenRouter).
-4. **`UPLOADTHING_TOKEN`** for Phase 4.
+4. **`UPLOADTHING_TOKEN`** — needed for Phase 4's upload flow specifically (get one at uploadthing.com, dashboard → API Keys).
 
 **Known-unverified paths inherited from Phases 1–3** — exercise these once a DB exists:
 - `loadGapAnalysis` Postgres joins (`RoleCompetency`/`UserCompetency`/`DepartmentPriority`) and the `SkillGap` upsert
 - Assessment submit route's prior-attempt lookback and evidence dedup-on-resubmit
 - Live AI-generated gap reason text (only the deterministic fallback has run)
 - Any live LLM call at all
+
+**Known-unverified paths added by Phases 4–5 — exercise these first, in this order, once the three items above exist:**
+1. Upload a real PDF/DOCX/PPTX via `/trainer/documents` → confirm `Document.processingStatus` actually walks `PENDING → EXTRACTING → CHUNKING → EMBEDDING → READY` (poll `GET /api/documents` and watch it, or `psql` the row directly — **Prisma Studio cannot open a table with a vector column**, don't waste time chasing that as a bug).
+2. `psql` into the `DocumentChunk` table and confirm every `embedding` is exactly 1536 dims and looks L2-normalized (magnitude ≈ 1.0) — this is the failure mode the plan calls out as "silently wrong while still returning plausible-looking results," so don't just eyeball that retrieval returns *something*.
+3. On `/trainer/assessments`, generate questions from a real `READY` document and confirm in the DB that every resulting `Question.sourceChunkId` is non-null and points at a real `DocumentChunk` row (per PRD §4.7's traceability acceptance criterion).
+4. Approve a question, publish the assessment, take it as a learner from `/assessment`, and confirm `UserCompetency.currentScore` changes and a new `CompetencyEvidence` row appears in `EvidenceDrawer` — this is PRD §4.8's acceptance criterion and it reuses the Phase 2 submit route unmodified, so it should "just work" if Phase 2 already did.
+5. Try a genuinely off-topic retrieval query against a real document and confirm similarity comes back low — this is what Phase 7's tutor refusal threshold will depend on, so it's worth establishing the baseline now rather than discovering it's miscalibrated mid-Phase-7.
 
 ---
 
@@ -254,7 +297,7 @@ PRD §5.3. All 12 steps must work **live, end-to-end, for one officer**:
 11. Platform recommends the next step
 12. Administrator sees department-level gaps
 
-Steps 1–6 and 10–12 become reachable once Phases 4–6 land. **Protect that core path first** — PRD §6.2 notes it demonstrates the full closed loop even if the tutor (7) or MCQ generator (5) slip.
+**Status after this pass:** steps 1–4, 8, 9, and 10 have code in place (pending the runtime verification in §7). Steps 5, 6, and 11 need Phase 6 (Recommendation + Learning Path Engine — no course catalog is seeded yet, so there is nothing to recommend). Step 7 needs Phase 7 (`streamText` is still a stub). Step 12 needs Phase 8. **Protect the 1→4→8→9→10 closed loop first once you have live infra** — PRD §6.2 notes this demonstrates the full loop even if the tutor (7) or a fully-seeded catalog (6) slip.
 
 ---
 
@@ -263,7 +306,7 @@ Steps 1–6 and 10–12 become reachable once Phases 4–6 land. **Protect that 
 - **Definition of done per phase:** `pnpm build`, `pnpm lint`, `pnpm test` all pass; new engine code has tests for 100-run determinism, exact threshold boundaries, null propagation, and evidence-sums-to-score; the architecture boundary test still passes; UI verified **by you** in both themes.
 - **Verify your own work.** Use the Browser MCP tools against `pnpm dev`. Don't ask the user to check what you can check yourself.
 - **Never invent a connection string or API key.** If something can't be verified without one, say so plainly rather than claiming it works.
-- **Nothing is committed yet.** The repo has one initial commit; all ~19 paths are untracked. Commit only when the user asks.
+- **Nothing is committed yet.** The repo has one initial commit; all paths since are untracked. Commit only when the user asks.
 - **Report honestly.** If a test fails, say so with the output. If a step was skipped, say that. The user is making decisions based on your reports.
 
 ---
@@ -272,11 +315,13 @@ Steps 1–6 and 10–12 become reachable once Phases 4–6 land. **Protect that 
 
 | Phase | Focus | Status |
 |---|---|---|
-| 1 | Auth/RBAC, data model, taxonomy + prerequisite DAG, design system | ✅ **Complete, verified** |
-| 2 | Competency Engine + diagnostic generation + assessment runner | ✅ **Complete, verified** |
-| 3 | Skill Gap Engine + severity + reasoning + gap dashboard | ✅ **Complete, verified** |
-| 4 | Document pipeline: upload → chunk → embed (pgvector) → storage | ⬜ **Next. Blocks 5 and 7.** |
-| 5 | MCQ Generator (RAG-grounded) + Assessment Engine feedback loop | ⬜ |
-| 6 | Recommendation + Learning Path Engine (seeded catalog) | ⬜ |
-| 7 | AI Tutor (retrieval + grounded response + refusal rule) | ⬜ |
-| 8 | Dashboards (Learner/Trainer/Admin), audit, warm-demo, polish | ⬜ |
+| 1 | Auth/RBAC, data model, taxonomy + prerequisite DAG, design system | ✅ **Complete, verified statically** |
+| 2 | Competency Engine + diagnostic generation + assessment runner | ✅ **Complete, verified statically** |
+| 3 | Skill Gap Engine + severity + reasoning + gap dashboard | ✅ **Complete, verified statically** |
+| 4 | Document pipeline: upload → chunk → embed (pgvector) → storage | ✅ **Built, build/lint/test-clean — UNVERIFIED at runtime (§7)** |
+| 5 | MCQ Generator (RAG-grounded) + Assessment Engine feedback loop | ✅ **Built, build/lint/test-clean — UNVERIFIED at runtime (§7)** |
+| 6 | Recommendation + Learning Path Engine (seeded catalog) | ⬜ **Next.** Nothing under `src/lib/engines/` has changed since Phase 3 — `recommendation.ts`/`learning-path.ts` don't exist yet. No course catalog is seeded. |
+| 7 | AI Tutor (retrieval + grounded response + refusal rule) | ⬜ Retrieval helpers already exist (`retrieveAcrossAllDocuments` in `src/lib/rag/retrieve.ts`) and `SourceChunkCard` is already built — reuse both. `streamText` in both AI providers is still a throwing stub; that's this phase's actual new work. |
+| 8 | Dashboards (Learner/Trainer/Admin), audit, warm-demo, polish | ⬜ Learner dashboard (`/dashboard`) still renders **hardcoded fixture data**, not real `UserCompetency` rows — don't assume it's wired up just because it renders. |
+
+**For the next agent starting Phase 6:** read `RestPlan.md` §4 (Phase 6) and `docs/engine-specifications.md` §3–4 for the exact formulas, seed the course catalog from `docs/course-catalog-research.md` first, and write `recommendation.ts`/`learning-path.ts` as pure functions under `src/lib/engines/` — same purity rule as `competency.ts`/`gap.ts`, verified the same mechanical way (ESLint + `tests/architecture/engines-boundary.test.ts`). Phases 4–5's RAG/questions modules deliberately sit outside `engines/` and are not a precedent for where Phase 6 code goes.
