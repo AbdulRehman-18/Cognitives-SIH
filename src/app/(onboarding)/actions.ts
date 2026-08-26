@@ -85,5 +85,8 @@ export async function completeOnboardingAction(
     }),
   ]);
 
-  redirect("/dashboard");
+  // PRD §5.4: onboarding is diagnostic, not a dead-end form. Route straight
+  // into the single-domain diagnostic instead of a full dashboard so the
+  // officer gets immediate measured value before ever seeing dashboard chrome.
+  redirect("/onboarding/diagnostic");
 }

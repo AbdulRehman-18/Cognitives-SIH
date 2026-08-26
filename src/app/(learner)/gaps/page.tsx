@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { AppShell } from "@/components/app-shell";
+import { LearnerNav } from "@/components/learner-nav";
 import { GapDashboard } from "@/components/caliper/gap-dashboard";
 import { loadGapAnalysis } from "@/lib/gap-reasoning/load-gap-analysis";
 
@@ -16,7 +17,7 @@ export default async function GapsPage() {
   const data = await loadGapAnalysis(session.user.id);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
+    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
       <div className="mx-auto max-w-5xl px-6 py-10">
         {data ? (
           <GapDashboard

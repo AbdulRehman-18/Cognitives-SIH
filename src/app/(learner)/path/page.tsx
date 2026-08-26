@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { AppShell } from "@/components/app-shell";
+import { LearnerNav } from "@/components/learner-nav";
 import { PathTimeline, type PathTimelineItem } from "@/components/caliper/path-timeline";
 import { loadLearningPath } from "@/lib/recommendations/load-learning-path";
 
@@ -14,7 +15,7 @@ export default async function PathPage() {
   const data = await loadLearningPath(session.user.id);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
+    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
