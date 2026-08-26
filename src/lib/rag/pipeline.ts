@@ -54,7 +54,16 @@ async function setStatus(
 export async function processDocument(documentId: string): Promise<void> {
   const document = await db.document.findUniqueOrThrow({ where: { id: documentId } });
 
+  // Tracks the stage actually in flight when an error is thrown, so an
+  // un-wrapped error (e.g. a raw Prisma error from storeDocumentChunks)
+  // is attributed to the real failing stage instead of defaulting to
+  // whatever the first stage happened to be (a prior bug: every failure,
+  // regardless of where it occurred, was reported as "Failed while
+  // EXTRACTING").
+  let currentStage: PipelineStage = "EXTRACTING";
+
   try {
+    currentStage = "EXTRACTING";
     await setStatus(documentId, "EXTRACTING");
     const fileResponse = await fetch(document.uploadThingUrl);
     if (!fileResponse.ok) {
@@ -76,12 +85,14 @@ export async function processDocument(documentId: string): Promise<void> {
       );
     }
 
+    currentStage = "CHUNKING";
     await setStatus(documentId, "CHUNKING");
     const chunks = chunkText(text);
     if (chunks.length === 0) {
       throw new DocumentProcessingError("CHUNKING", "Document produced no usable chunks.");
     }
 
+    currentStage = "EMBEDDING";
     await setStatus(documentId, "EMBEDDING");
     let embeddings: number[][];
     try {
@@ -101,14 +112,26 @@ export async function processDocument(documentId: string): Promise<void> {
       );
     }
 
-    await storeDocumentChunks(
-      documentId,
-      chunks.map((chunk, i) => ({ ...chunk, embedding: embeddings[i] })),
-    );
+    // Storage failures (e.g. a transaction timeout) are raw Prisma errors,
+    // not DocumentProcessingErrors — wrap them explicitly so they're still
+    // attributed to the right stage rather than falling through to the
+    // generic "Unknown processing failure" or a misleading default.
+    try {
+      await storeDocumentChunks(
+        documentId,
+        chunks.map((chunk, i) => ({ ...chunk, embedding: embeddings[i] })),
+      );
+    } catch (error) {
+      throw new DocumentProcessingError(
+        "EMBEDDING",
+        error instanceof Error ? error.message : "Storing chunks failed.",
+        error,
+      );
+    }
 
     await setStatus(documentId, "READY", { chunkCount: chunks.length });
   } catch (error) {
-    const stage = error instanceof DocumentProcessingError ? error.stage : "EXTRACTING";
+    const stage = error instanceof DocumentProcessingError ? error.stage : currentStage;
     const message = error instanceof Error ? error.message : "Unknown processing failure.";
     await setStatus(documentId, "FAILED", { errorMessage: `Failed while ${stage}: ${message}` });
     throw error;
