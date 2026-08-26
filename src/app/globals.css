@@ -1,0 +1,118 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The Caliper — SkillForge AI design system tokens.
+   A measurement-instrument aesthetic: calipers, gauges, calibration ticks.
+   Cool paper in light mode, warm charcoal in dark mode.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Type */
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
+
+  /* Caliper instrument accents — same across themes, tuned per-mode below */
+  --color-measure: oklch(0.55 0.13 220); /* primary — measured / known */
+  --color-target: oklch(0.62 0.11 175); /* teal — target / on-track */
+  --color-gap: oklch(0.62 0.17 35); /* amber-red — gap severity */
+  --color-critical: oklch(0.55 0.2 25);
+  --color-unmeasured: oklch(0.75 0.02 250); /* "not yet assessed" */
+
+  /* Radius — instruments are precise, not pillowy: 2–6px only */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+}
+
+@theme inline {
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-ink);
+  --color-border: var(--color-rule);
+  --color-input: var(--color-rule);
+  --color-ring: var(--color-measure);
+
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-ink);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-ink);
+
+  --color-primary: var(--color-measure);
+  --color-primary-foreground: oklch(0.99 0.002 240);
+  --color-secondary: var(--color-surface);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted: var(--color-surface);
+  --color-muted-foreground: var(--color-muted-ink);
+  --color-accent: var(--color-target);
+  --color-accent-foreground: oklch(0.99 0.002 240);
+  --color-destructive: var(--color-critical);
+
+  --color-sidebar: var(--color-surface);
+  --color-sidebar-foreground: var(--color-ink);
+  --color-sidebar-primary: var(--color-measure);
+  --color-sidebar-primary-foreground: oklch(0.99 0.002 240);
+  --color-sidebar-accent: var(--color-bg);
+  --color-sidebar-accent-foreground: var(--color-ink);
+  --color-sidebar-border: var(--color-rule);
+  --color-sidebar-ring: var(--color-measure);
+
+  --radius-sm: var(--radius-xs);
+  --radius-md: var(--radius-sm);
+  --radius-lg: var(--radius-md);
+  --radius-xl: var(--radius-lg);
+}
+
+:root {
+  /* Light — cool paper */
+  --color-bg: oklch(0.985 0.004 240);
+  --color-surface: oklch(1 0 0);
+  --color-ink: oklch(0.22 0.012 250);
+  --color-muted-ink: oklch(0.52 0.014 250);
+  --color-rule: oklch(0.9 0.008 250);
+}
+
+.dark {
+  /* Dark — warm charcoal */
+  --color-bg: oklch(0.19 0.008 60);
+  --color-surface: oklch(0.23 0.01 60);
+  --color-ink: oklch(0.94 0.006 60);
+  --color-muted-ink: oklch(0.7 0.012 60);
+  --color-rule: oklch(0.32 0.01 60);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* All numerals render in tabular-mono so gauges and readouts never jitter */
+  .tabular-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer utilities {
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
