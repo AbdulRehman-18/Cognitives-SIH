@@ -3,104 +3,174 @@ import { AppShell } from "@/components/app-shell";
 import { LearnerNav } from "@/components/learner-nav";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+
+function DomainTicks({ level }: { level: number | null }) {
+  return (
+    <div className="flex items-center gap-[3px]">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span key={i} className={`size-[8px] rounded-full border ${level !== null && i <= Math.round(level) ? "bg-[#2E3AFF] border-[#2E3AFF]" : "bg-white border-[color:var(--color-border-resting)]"}`} />
+      ))}
+    </div>
+  );
+}
 
 export default async function ProfilePage() {
   const session = await requireRole("LEARNER");
-  const dbUser = await db.user.findUnique({ where: { id: session.user.id } });
-  const profile = await db.officerProfile.findUnique({ where: { userId: session.user.id } });
-  const [domains, comps, gaps, quizAttempts] = await Promise.all([
+  const [dbUser, profile, domains, comps, gaps, quizAttempts, userCompetencies] = await Promise.all([
+    db.user.findUnique({ where: { id: session.user.id }, select: { email: true, name: true, department: { select: { name: true } }, role: true } }),
+    db.officerProfile.findUnique({ where: { userId: session.user.id } }),
     db.domain.findMany({ include: { _count: { select: { competencies: true } } } }),
-    db.userCompetency.findMany({ where: { userId: session.user.id } }),
-    db.skillGap.findMany({ where: { userId: session.user.id } }),
-    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 5 }),
+    db.userCompetency.findMany({ where: { userId: session.user.id }, include: { competency: { select: { domainId: true } } } }),
+    db.skillGap.findMany({ where: { userId: session.user.id }, include: { competency: { select: { name: true } } } }),
+    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 6, include: { assessment: { select: { competencies: true } } } }),
+    db.userCompetency.findMany({ where: { userId: session.user.id, currentScore: { not: null } }, select: { currentScore: true, competency: { select: { domainId: true } } } }),
   ]);
-  const assessments = quizAttempts.map((q) => ({ id: q.id, status: q.submittedAt ? "COMPLETED" : "IN_PROGRESS", createdAt: q.startedAt }));
+
   const assessed = comps.filter((c) => c.currentScore !== null).length;
   const total = domains.reduce((s, d) => s + d._count.competencies, 0);
-  const avgLevel = comps.filter((c) => c.currentScore !== null).length ? (comps.filter((c) => c.currentScore !== null).reduce((s, c) => s + Number(c.currentScore), 0) / Math.max(1, comps.filter((c) => c.currentScore !== null).length) / 20).toFixed(1) : "—";
+  const avgLevel = assessed
+    ? (comps.filter((c) => c.currentScore !== null).reduce((s, c) => s + Number(c.currentScore!), 0) / assessed / 20).toFixed(1)
+    : "—";
+
+  // Actual per-domain level
+  const perDomain = domains.map((d) => {
+    const scores = userCompetencies.filter((uc) => uc.competency.domainId === d.id).map((uc) => Number(uc.currentScore!));
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    const level = avg === null ? null : Math.max(1, Math.min(5, avg / 20));
+    return { ...d, level, count: scores.length };
+  });
+
+  const completeness = profile?.completeness ?? Math.round((assessed / Math.max(total, 1)) * 60 + (profile ? 20 : 0));
+
+  // Gap split actual
+  const gapBySeverity = {
+    CRITICAL: gaps.filter((g) => g.severity === "CRITICAL").length,
+    OTHER: gaps.filter((g) => g.severity !== "CRITICAL").length,
+  };
 
   return (
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
-      <div className="page-shell py-[28px] flex flex-col gap-[16px] max-w-[960px]">
-        <div>
-          <p className="text-eyebrow text-[11px] tracking-[0.14em] text-[color:var(--color-accent)]">Profile</p>
-          <h1 className="text-[28px] md:text-[32px] font-[650] tracking-[-0.03em] mt-[6px]">Your profile</h1>
-          <p className="text-body text-muted-foreground">Institutional, not gamified — your charter, readiness, and history.</p>
-        </div>
-
-        {/* Hero charter */}
-        <div className="rounded-[24px] bg-[#111] text-white p-[20px] md:p-[28px] flex flex-col md:flex-row gap-[20px] shadow-[var(--shadow-card)] overflow-hidden relative">
-          <div className="absolute inset-0 opacity-[0.06]" style={{ background: "radial-gradient(600px 300px at 20% 0%, white, transparent)" }} aria-hidden />
-          <div className="size-[72px] rounded-[18px] bg-white text-[#111] grid place-items-center text-[28px] font-bold shrink-0 relative">{(session.user.name ?? "O").slice(0, 1)}</div>
-          <div className="flex-1 relative">
-            <h2 className="text-[22px] font-semibold tracking-[-0.02em]">{session.user.name ?? "Officer"}</h2>
-            <p className="text-small opacity-70">{dbUser?.email} · {profile?.jobRole ?? "No role assigned"}</p>
-            <div className="mt-[12px] flex flex-wrap gap-[8px]">
-              <span className="rounded-full bg-white text-[#111] px-[12px] py-[6px] text-[11px] font-semibold tracking-wide">{assessed}/{total} measured</span>
-              <span className="rounded-full bg-white/10 border border-white/20 px-[12px] py-[6px] text-[11px] font-medium">Avg level {avgLevel} / 5</span>
-              <span className="rounded-full bg-white/10 border border-white/20 px-[12px] py-[6px] text-[11px] font-medium">{gaps.length} gaps flagged</span>
+      <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[18px]">
+        {/* Hero — advanced, not just avatar + 3 pills */}
+        <div className="rounded-[20px] border border-[color:var(--color-border-resting)] bg-[#141210] text-[#FFF8ED] overflow-hidden relative">
+          <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ background: "radial-gradient(800px 400px at 18% 0%, white, transparent)" }} />
+          <div className="relative p-[22px] md:p-[28px] flex flex-col lg:flex-row gap-[20px]">
+            <div className="flex gap-[16px] flex-1 min-w-0">
+              <div className="size-[72px] rounded-[16px] bg-white text-[#141210] grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "O").slice(0, 1)}</div>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[24px] md:text-[28px] font-[720] tracking-[-0.02em] leading-none">{session.user.name ?? "Officer"}</h1>
+                <p className="text-[13px] opacity-70 mt-[6px] truncate">{dbUser?.email} · {profile?.jobRole ?? "No role assigned"} {dbUser?.department ? `· ${dbUser.department.name}` : ""}</p>
+                <div className="mt-[12px] flex flex-wrap gap-[8px]">
+                  <span className="rounded-full bg-white text-[#141210] px-[12px] py-[6px] text-[11px] font-semibold">{assessed}/{total} measured</span>
+                  <span className="rounded-full bg-white/10 border border-white/15 px-[12px] py-[6px] text-[11px] font-medium">Avg {avgLevel} / 5</span>
+                  <span className={`rounded-full px-[12px] py-[6px] text-[11px] font-bold border ${gapBySeverity.CRITICAL ? "bg-[#F04438] border-[#F04438] text-white" : "bg-white/10 border-white/20"}`}>{gapBySeverity.CRITICAL ? `${gapBySeverity.CRITICAL} critical` : "No critical"}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-[8px] shrink-0 relative">
-            <Link href="/settings" className="rounded-full bg-white text-[#111] px-[16px] py-[8px] text-small font-semibold text-center">Edit profile</Link>
-            <Link href="/gaps" className="rounded-full bg-white/10 border border-white/20 text-white px-[16px] py-[8px] text-small font-medium text-center hover:bg-white/15">View gaps</Link>
+            <div className="lg:w-[340px] shrink-0 flex flex-col gap-[12px]">
+              <div className="rounded-[14px] bg-white/10 border border-white/15 p-[14px] flex items-center gap-[14px]">
+                <div className="size-[56px] rounded-full border-[5px] border-white/20 relative grid place-items-center shrink-0" style={{ background: `conic-gradient(white ${completeness}%, transparent ${completeness}%)` }}>
+                  <div className="absolute inset-[5px] rounded-full bg-[#141210] grid place-items-center"><span className="num text-[13px] font-bold">{completeness}%</span></div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold tracking-[0.08em] uppercase opacity-60">Profile completeness</p>
+                  <p className="text-[13px] font-medium leading-tight mt-[2px]">Progressive profiling — enrich to 100% for sharper gaps.</p>
+                </div>
+              </div>
+              <div className="flex gap-[8px]">
+                <Link href="/settings" className="flex-1 rounded-full bg-white text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
+                <Link href="/gaps" className="flex-1 rounded-full bg-white/10 border border-white/20 text-white px-[14px] py-[8px] text-[13px] font-medium text-center">View gaps</Link>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-[16px]">
-          <div className="lg:col-span-7 flex flex-col gap-[16px]">
-            <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] shadow-[var(--shadow-card)]">
-              <h3 className="text-small font-semibold">Charter</h3>
-              <dl className="mt-[12px] grid grid-cols-2 gap-[12px] text-small">
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] p-[12px]"><dt className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Designation</dt><dd className="font-medium mt-[4px]">{profile?.designation ?? "Not set"}</dd></div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] p-[12px]"><dt className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Department</dt><dd className="font-medium mt-[4px]">{profile?.department ?? "Not set"}</dd></div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] p-[12px]"><dt className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Job role</dt><dd className="font-medium mt-[4px]">{profile?.jobRole ?? "Pending"}</dd></div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] p-[12px]"><dt className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Experience</dt><dd className="font-medium mt-[4px]">{profile?.yearsExperience ? `${profile.yearsExperience} years` : "—"}</dd></div>
-              </dl>
-              <p className="text-[11px] tabular-mono text-muted-foreground mt-[10px]">Progressive profiling — 60-second minimum, enriched over time.</p>
-            </div>
+          {/* Charter */}
+          <div className="lg:col-span-5 flex flex-col gap-[16px]">
+            <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
+              <h2 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Charter</h2>
+              <div className="mt-[12px] grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
+                {[
+                  { k: "Designation", v: profile?.designation ?? "Not set" },
+                  { k: "Department", v: profile?.department ?? dbUser?.department?.name ?? "Not set" },
+                  { k: "Job role", v: profile?.jobRole ?? "Pending" },
+                  { k: "Experience", v: profile?.yearsExperience ? `${profile.yearsExperience} years` : "—" },
+                  { k: "Education", v: profile?.education ?? "—" },
+                  { k: "Member since", v: profile ? new Date(profile.createdAt).toLocaleDateString() : "—" },
+                ].map((f) => (
+                  <div key={f.k} className="rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
+                    <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">{f.k}</p>
+                    <p className="text-[13px] font-medium mt-[4px] truncate">{f.v}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
 
-            <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] shadow-[var(--shadow-card)]">
-              <h3 className="text-small font-semibold">Assessment history</h3>
-              {assessments.length ? (
-                <ul className="mt-[12px] flex flex-col gap-[8px]">
-                  {assessments.map((a) => (
-                    <li key={a.id} className="flex items-center justify-between gap-[12px] rounded-[12px] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
-                      <span className="text-small font-medium truncate">Diagnostic</span>
-                      <span className="text-[11px] tabular-mono text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</span>
-                      <span className={`text-[11px] font-semibold px-[8px] py-[3px] rounded-full border ${a.status === "COMPLETED" ? "bg-[#12B76A]/10 text-[#0E7A4B] border-[#12B76A]/20" : "bg-white border-[color:var(--color-border-resting)]"}`}>{a.status}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-small text-muted-foreground mt-[8px]">No assessments yet — your history will live here.</p>
-              )}
-              <Link href="/assessment/new" className={buttonVariants({ variant: "outline", size: "sm" })} style={{ marginTop: 12 } as React.CSSProperties}>New diagnostic</Link>
-            </div>
+            <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
+              <h2 className="text-[13px] font-[650]">Readiness by domain — actual</h2>
+              <p className="text-[12px] text-muted-foreground mt-[2px]">Measured, not mocked. Dots = level / 5.</p>
+              <div className="mt-[14px] flex flex-col gap-[12px]">
+                {perDomain.map((d) => (
+                  <div key={d.id} className="flex items-center gap-[12px] rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-semibold leading-none truncate" title={d.name}>{d.name}</p>
+                      <p className="text-[11px] tabular-mono text-muted-foreground mt-[4px]">{d.count}/{d._count.competencies} assessed</p>
+                    </div>
+                    <DomainTicks level={d.level} />
+                    <span className="num text-[13px] font-semibold tabular-mono w-[44px] text-right">{d.level === null ? "—" : `${d.level.toFixed(1)}`}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
 
-          <div className="lg:col-span-5 flex flex-col gap-[16px]">
-            <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] shadow-[var(--shadow-card)]">
-              <h3 className="text-small font-semibold">Readiness by domain</h3>
-              <div className="mt-[12px] flex flex-col gap-[10px]">
-                {domains.map((d) => {
-                  const related = comps.filter((c) => c.currentScore !== null).length ? Math.round((Math.random() * 2 + 1) * 10) / 10 : null;
-                  return (
-                    <div key={d.id} className="flex items-center gap-[12px] rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
-                      <span className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground w-[120px] truncate">{d.name}</span>
-                      <div className="flex-1 h-[6px] rounded-full bg-white border border-[color:var(--color-border-resting)] overflow-hidden"><div className="h-full bg-[color:var(--color-accent)]" style={{ width: `${related ? (Number(related) / 5) * 100 : 8}%` }} /></div>
-                      <span className="num text-small font-semibold w-[48px] text-right">{related ? `${related}/5` : "—"}</span>
-                    </div>
-                  );
-                })}
+          {/* History + gaps */}
+          <div className="lg:col-span-7 flex flex-col gap-[16px]">
+            <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
+              <div className="flex items-baseline justify-between gap-[8px]">
+                <h2 className="text-[13px] font-[650]">Assessment journey</h2>
+                <span className="text-[11px] tabular-mono text-muted-foreground">{quizAttempts.length} attempts</span>
               </div>
-            </div>
-            <div className="rounded-[20px] bg-[#FFFBEB] border border-[#FDE68A]/50 p-[16px]">
-              <p className="text-small font-semibold">Dignity first</p>
-              <p className="text-small leading-relaxed text-muted-foreground mt-[4px]">No streaks, no cartoon XP. Your profile shows measured ranges and growth, never punitive scores.</p>
-              <Link href="/settings" className="inline-flex mt-[10px] rounded-full bg-[#111] text-white px-[12px] py-[7px] text-[12px] font-medium">Manage settings →</Link>
-            </div>
+              {quizAttempts.length ? (
+                <ol className="mt-[14px] relative flex flex-col gap-[0px] before:absolute before:left-[11px] before:top-[8px] before:bottom-[16px] before:w-px before:bg-[color:var(--color-border-resting)]">
+                  {quizAttempts.map((q) => (
+                    <li key={q.id} className="relative flex gap-[12px] pl-[28px] py-[10px]">
+                      <span className={`absolute left-0 top-[14px] size-[10px] rounded-full border-2 ${q.submittedAt ? "bg-[#12B76A] border-[#12B76A]" : "bg-white border-[color:var(--color-border-resting)]"}`} />
+                      <div className="flex-1 min-w-0 rounded-[12px] border border-[color:var(--color-border-resting)] bg-[#FFFCF7] px-[12px] py-[10px] flex items-center gap-[10px]">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium truncate">Diagnostic · {q.assessment.competencies.length} competencies</p>
+                          <p className="text-[11px] tabular-mono text-muted-foreground">{new Date(q.startedAt).toLocaleDateString()} · {q.submittedAt ? `Score ${Number(q.score ?? 0).toFixed(0)}/100` : "In progress"}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-[8px] py-[3px] text-[11px] font-semibold border ${q.submittedAt ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-white border-[color:var(--color-border-resting)]"}`}>{q.submittedAt ? "Completed" : "Ongoing"}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-[13px] text-muted-foreground mt-[8px]">No assessments yet — start a diagnostic to build your trajectory.</p>
+              )}
+              <Link href="/assessment/new" className="mt-[12px] inline-flex rounded-full bg-[#2E3AFF] text-white px-[14px] py-[8px] text-[13px] font-semibold">Start new diagnostic →</Link>
+            </section>
+
+            <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
+              <h2 className="text-[13px] font-[650]">Open gaps</h2>
+              {gaps.length ? (
+                <div className="mt-[12px] flex flex-col gap-[8px]">
+                  {gaps.slice(0, 5).map((g) => (
+                    <div key={g.id} className="flex items-center gap-[10px] rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
+                      <span className={`size-2 rounded-full shrink-0 ${g.severity === "CRITICAL" ? "bg-[#F04438]" : g.severity === "LOW" ? "bg-[#12B76A]" : "bg-[#E5A100]"}`} />
+                      <span className="text-[13px] font-medium flex-1 truncate">{g.competency.name}</span>
+                      <span className="text-[11px] tabular-mono text-muted-foreground">Lv {g.currentLevel} → {g.requiredLevel}</span>
+                      <span className={`text-[10px] font-bold tracking-wide px-[7px] py-[3px] rounded-full border ${g.severity === "CRITICAL" ? "bg-[#FFF1F0] text-[#C9190B] border-[#FECACA]" : "bg-white border-[color:var(--color-border-resting)]"}`}>{g.severity}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px] text-muted-foreground mt-[8px]">No open gaps — well calibrated.</p>
+              )}
+              <Link href="/gaps" className="mt-[12px] inline-flex text-[13px] font-medium text-[#2E3AFF] underline underline-offset-4">View full gap report →</Link>
+            </section>
           </div>
         </div>
       </div>
