@@ -59,8 +59,9 @@ model User {
   quizAttempts         QuizAttempt[]
   documents            Document[]
   learningProgress     LearningProgress[]
-  reviewedQuestions    Question[]          @relation("QuestionReviewer")
-  auditLogs            AuditLog[]
+   reviewedQuestions    Question[]          @relation("QuestionReviewer")
+   hintRequests         HintRequest[]
+   auditLogs            AuditLog[]
 
   @@index([departmentId])
   @@index([roleId])
@@ -469,9 +470,10 @@ model Question {
 
   createdAt       DateTime              @default(now())
 
-  answers         QuizAnswer[]
+   answers         QuizAnswer[]
+   hintRequests    HintRequest[]
 
-  @@index([assessmentId])
+   @@index([assessmentId])
   @@index([competencyId])
   @@index([sourceChunkId])
 }
@@ -488,9 +490,27 @@ model QuizAttempt {
   score        Decimal?   @db.Decimal(5, 2)
 
   answers      QuizAnswer[]
+  hintRequests HintRequest[]
 
   @@index([userId])
   @@index([assessmentId])
+}
+
+model HintRequest {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId        String
+  question          Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  quizAttemptId     String?
+  quizAttempt       QuizAttempt? @relation(fields: [quizAttemptId], references: [id])
+  tier              Int
+  guideResponseText String   @db.Text
+  verifierPassed    Boolean
+  reasoning         String?  @db.Text
+  timestamp         DateTime @default(now())
+  @@index([userId, questionId])
+  @@index([quizAttemptId])
 }
 
 model QuizAnswer {

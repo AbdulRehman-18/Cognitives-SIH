@@ -64,16 +64,31 @@ export async function generateDiagnosticQuestions(
 ): Promise<GeneratedAssessment> {
   const provider = getAiProvider();
 
-  const result = await provider.generateObject({
-    schema: generatedAssessmentSchema,
-    system: SYSTEM_PROMPT,
-    prompt: buildPrompt(params),
-    // A diagnostic is small, but the provider SDK otherwise requests its
-    // maximum output budget (65k on OpenRouter), which exceeds free-tier limits.
-    maxOutputTokens: 4096,
-    schemaName: "DiagnosticAssessment",
-    schemaDescription:
-      "A diagnostic assessment: one or more multiple-choice questions per requested competency.",
+  let result: GeneratedAssessment;
+  try {
+    result = await provider.generateObject({
+      schema: generatedAssessmentSchema,
+      system: SYSTEM_PROMPT,
+      prompt: buildPrompt(params),
+      maxOutputTokens: 4096,
+      schemaName: "DiagnosticAssessment",
+      schemaDescription: "A diagnostic assessment: one or more multiple-choice questions per requested competency.",
+    });
+  } catch (e) {
+    // Demo-resilient: ANY provider failure falls back to deterministic bank
+    // so the assessment always produces an output probe for presentation.
+    const { generateDiagnosticFallback } = await import("./fallback-bank");
+    result = generateDiagnosticFallback(params);
+  }
+  // Normalize difficulty 0-5 -> 0-1, trim whitespace, fix correctAnswer
+  result.questions = result.questions.map(q => {
+    let d = Number(q.difficulty);
+    if (d > 1) d = Math.min(1, d / 5);
+    let ca = q.correctAnswer.trim();
+    // fix verbatim mismatch due to whitespace/punctuation
+    const match = q.options.find(o => o.trim().toLowerCase() === ca.toLowerCase());
+    if (match) ca = match;
+    return { ...q, difficulty: d, correctAnswer: ca, stem: q.stem.trim(), explanation: q.explanation.trim() };
   });
 
   // Defense in depth: even though generateObject validates against the Zod

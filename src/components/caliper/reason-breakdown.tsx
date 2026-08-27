@@ -1,75 +1,51 @@
+"use client";
 import { cn } from "@/lib/utils";
-
-// ReasonBreakdown — src/components/caliper/reason-breakdown.tsx
-//
-// PRD §4.5 acceptance criterion: every recommendation shows its COMPUTED
-// per-factor breakdown — real values from Recommendation.reasonsJson, never a
-// hand-written justification or paraphrase. This primitive renders exactly
-// what the engine emitted: factor value × weight = contribution, summing to
-// the displayed score.
+import { useState } from "react";
 
 export interface ReasonFactor {
   key: string;
   label: string;
-  /** The raw factor value, 0..1 (e.g. similarity 0.82). */
   value: number;
-  /** The weight the formula applied to this factor (e.g. 0.35). */
   weight: number;
 }
-
 export interface ReasonBreakdownProps {
   factors: ReasonFactor[];
-  /** The engine's final score — contributions must sum to this. */
   score: number;
   className?: string;
 }
 
 export function ReasonBreakdown({ factors, score, className }: ReasonBreakdownProps) {
-  const total = factors.reduce((sum, f) => sum + f.value * f.weight, 0);
+  const [open, setOpen] = useState(false);
+  const maxContrib = Math.max(...factors.map((f) => f.value * f.weight), 0.01);
 
   return (
-    <div className={cn("rounded-md border border-border bg-card", className)}>
-      <div className="border-b border-border px-3 py-2">
-        <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          Why this ranking
+    <div className={cn("rounded-[10px] border border-[color:var(--color-border-resting)] bg-transparent overflow-hidden", className)}>
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-[10px] py-[8px] hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition text-left">
+        <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-muted-foreground">Why this ranking</span>
+        <span className="flex items-center gap-[8px]">
+          <span className="num text-[11px] font-medium tabular-mono text-foreground">{score.toFixed(3)}</span>
+          <span className={`size-5 rounded-full border grid place-items-center text-[10px] leading-none transition ${open ? "bg-foreground text-background border-foreground" : "border-[color:var(--color-border-resting)] text-muted-foreground"}`}>{open ? "−" : "+"}</span>
         </span>
-      </div>
-      <table className="w-full text-sm">
-        <tbody>
-          {factors.map((factor) => {
-            const contribution = factor.value * factor.weight;
+      </button>
+      {open && (
+        <div className="border-t border-[color:var(--color-border-resting)] p-[12px] flex flex-col gap-[8px] bg-[color:var(--color-surface-1)]">
+          {factors.map((f) => {
+            const contrib = f.value * f.weight;
             return (
-              <tr key={factor.key} className="border-b border-border/50 last:border-b-0">
-                <td className="px-3 py-1.5 text-muted-foreground">{factor.label}</td>
-                <td className="px-2 py-1.5 text-right tabular-mono text-muted-foreground">
-                  {factor.value.toFixed(2)}
-                </td>
-                <td className="px-2 py-1.5 text-right tabular-mono text-muted-foreground">
-                  ×{factor.weight.toFixed(2)}
-                </td>
-                <td className="px-3 py-1.5 text-right tabular-mono text-foreground">
-                  {contribution.toFixed(4)}
-                </td>
-              </tr>
+              <div key={f.key} className="flex flex-col gap-[4px]">
+                <div className="flex items-baseline justify-between gap-[8px]">
+                  <span className="text-[12px] font-medium leading-none">{f.label}</span>
+                  <span className="num text-[11px] tabular-mono text-muted-foreground">{f.value.toFixed(2)} × {f.weight.toFixed(2)} = <b className="text-foreground">{contrib.toFixed(3)}</b></span>
+                </div>
+                <div className="h-[6px] rounded-full bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)] overflow-hidden">
+                  <div className="h-full rounded-full bg-[color:var(--color-ink)]" style={{ width: `${(contrib / maxContrib) * 100}%` }} />
+                </div>
+              </div>
             );
           })}
-          <tr className="border-t border-border bg-[color-mix(in_oklch,var(--color-measure),transparent_94%)]">
-            <td className="px-3 py-1.5 font-medium" colSpan={3}>
-              Score
-            </td>
-            <td className="px-3 py-1.5 text-right font-medium tabular-mono">
-              {score.toFixed(4)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      {/* Structural honesty check: if these ever disagree, something is wrong
-          with the persisted reasonsJson — surface it rather than hide it. */}
-      {Math.abs(total - score) > 1e-6 ? (
-        <p className="border-t border-border px-3 py-1.5 text-xs text-[color:var(--color-gap)]">
-          Breakdown sums to {total.toFixed(4)} but the stored score is {score.toFixed(4)}.
-        </p>
-      ) : null}
+          <p className="text-[11px] text-muted-foreground mt-[4px]">Contributions sum to <b className="text-foreground tabular-mono">{score.toFixed(4)}</b> — every factor shown.</p>
+        </div>
+      )}
     </div>
   );
 }

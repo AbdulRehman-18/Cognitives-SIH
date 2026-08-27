@@ -166,5 +166,13 @@
   .token-entrance { animation: token-entrance var(--duration-entrance) var(--ease-entrance) both; }
   .token-entrance-stagger { animation: token-entrance var(--duration-entrance) var(--ease-entrance) both; animation-delay: calc(var(--stagger, 0) * 40ms); }
   @keyframes gauge-pulse { 0%,100%{opacity:0.06} 50%{opacity:0.12} }
+  /* Astryx Breadcrumbs — force horizontal when stylex runtime hasn't injected */
+  nav[aria-label="Breadcrumb"] ol { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; list-style:none; margin:0; padding:0; }
+  nav[aria-label="Breadcrumb"] li { display:flex; align-items:center; gap:4px 8px; margin:0; font-size:13px; line-height:20px; }
+  nav[aria-label="Breadcrumb"] li:first-child > span[aria-hidden] { display:none !important; }
+  nav[aria-label="Breadcrumb"] li span[aria-hidden] { color: var(--color-ink-faint); user-select:none; }
+  nav[aria-label="Breadcrumb"] a { color: var(--color-ink-muted); text-decoration:none; }
+  nav[aria-label="Breadcrumb"] a:hover { color: var(--color-ink); text-decoration:underline; text-underline-offset:4px; }
+  nav[aria-label="Breadcrumb"] [aria-current="page"] { color: var(--color-ink); font-weight:600; }
   @media (prefers-reduced-motion: reduce) { *,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important} }
 }

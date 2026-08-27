@@ -39,7 +39,7 @@ export default async function AdminRolesPage() {
           ) : (
             <div className="mt-[12px] grid grid-cols-1 md:grid-cols-2 gap-[12px]">
               {roles.map((r) => (
-                <Link key={r.id} href={`/admin/roles/${r.id}`} className="group rounded-[18px] border bg-white p-[14px] hover:shadow-md transition flex flex-col gap-[10px]" style={{ borderColor: "var(--color-border-resting)" }}>
+                <Link key={r.id} href={`/admin/roles/${r.id}`} className="group rounded-[18px] border bg-[color:var(--color-surface-1)] p-[14px] hover:shadow-md transition flex flex-col gap-[10px]" style={{ borderColor: "var(--color-border-resting)" }}>
                   <div className="flex items-start justify-between gap-[8px]">
                     <div className="flex-1">
                       <p className="text-small font-semibold group-hover:text-[color:var(--color-accent)]">{r.name}</p>

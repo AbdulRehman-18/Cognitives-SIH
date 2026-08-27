@@ -61,7 +61,7 @@ export default function VellumPage() {
 
         <Link
           href="#"
-          className="mt-auto flex items-center gap-[8px] rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[14px] py-[10px] text-small font-medium text-foreground hover:border-[color:var(--color-border-hover)] hover:bg-white transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+          className="mt-auto flex items-center gap-[8px] rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[14px] py-[10px] text-small font-medium text-foreground hover:border-[color:var(--color-border-hover)] hover:bg-[color:var(--color-surface-1)] transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path d="M2.5 6.5L8 2.5l5.5 4v5.2c0 .8-.7 1.5-1.5 1.5H4c-.8 0-1.5-.7-1.5-1.5V6.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -105,7 +105,7 @@ export default function VellumPage() {
                 <span className="text-eyebrow text-[11px] tracking-[0.12em] text-muted-foreground">Idempotency</span>
               </div>
               {/* Row */}
-              <div className="grid grid-cols-1 md:grid-cols-[1.6fr_0.9fr_0.8fr_1.2fr] gap-[6px] md:gap-[16px] px-[20px] py-[14px] md:py-[16px] items-center bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-[1.6fr_0.9fr_0.8fr_1.2fr] gap-[6px] md:gap-[16px] px-[20px] py-[14px] md:py-[16px] items-center bg-[color:var(--color-surface-1)]">
                 <span className="text-body text-[14px] text-foreground md:hidden text-muted-foreground text-eyebrow">Created</span>
                 <span className="text-[14px] leading-[20px] text-foreground">26 Aug 2026, 2:37 pm</span>
                 <span className="flex items-center gap-[6px] md:hidden text-muted-foreground text-eyebrow mt-[6px]">Status</span>

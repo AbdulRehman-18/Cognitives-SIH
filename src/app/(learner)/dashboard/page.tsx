@@ -163,7 +163,7 @@ export default async function LearnerDashboardPage() {
               <p className="text-[11px] tracking-[0.12em] uppercase font-semibold opacity-60">Urgency</p>
               <p className="text-[18px] font-semibold leading-tight">{critical.length ? `${critical.length} critical gap${critical.length > 1 ? "s" : ""} blocking readiness` : "No critical gaps — focus on depth"}</p>
               <p className="text-small opacity-70 leading-relaxed">{critical.length ? "Close Sampling and Survey Design first — they carry the highest priority score for your role." : "You’re close. One more assessment will sharpen the estimate."}</p>
-              <Link href="/gaps" className="mt-[8px] inline-flex w-fit rounded-full bg-white text-[#111] px-[14px] py-[8px] text-small font-medium">View prioritized gaps →</Link>
+              <Link href="/gaps" className="mt-[8px] inline-flex w-fit rounded-full bg-[color:var(--color-surface-1)] text-[#111] px-[14px] py-[8px] text-small font-medium">View prioritized gaps →</Link>
             </div>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default async function LearnerDashboardPage() {
                     <span className="flex-1 text-body font-medium">{g.competency.name}</span>
                     <span className={`text-[11px] font-semibold tracking-wide uppercase px-[8px] py-[4px] rounded-full border ${g.severity === "CRITICAL" ? "bg-[rgba(240,68,56,0.1)] text-[#C9190B] border-[rgba(240,68,56,0.2)]" : g.severity === "HIGH" ? "bg-[rgba(247,144,9,0.12)] text-[#9C5C00] border-[rgba(247,144,9,0.2)]" : "bg-[rgba(18,183,106,0.1)] text-[#0E7A4B] border-[rgba(18,183,106,0.2)]"}`}>{g.severity.toLowerCase()}</span>
                     <span className="hidden md:inline num text-small tabular-mono text-muted-foreground">{g.gapSize}-level gap</span>
-                    <Link href="/gaps" className="hidden md:inline-flex rounded-full border border-[color:var(--color-border-resting)] px-[10px] py-[5px] text-[12px] font-medium hover:bg-white">Fix →</Link>
+                    <Link href="/gaps" className="hidden md:inline-flex rounded-full border border-[color:var(--color-border-resting)] px-[10px] py-[5px] text-[12px] font-medium hover:bg-[color:var(--color-surface-1)]">Fix →</Link>
                   </li>
                 ))}
               </ul>

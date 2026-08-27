@@ -6,10 +6,10 @@ import type { AiProvider, GenerateObjectOptions, StreamTextOptions } from "@/lib
 import { withAiErrorHandling, classifyAiError } from "@/lib/ai/errors";
 
 // Vercel AI SDK v7 + @openrouter/ai-sdk-provider. Primary generation model is
-// google/gemini-3.7-flash; the `models` array gives automatic provider
+// google/gemini-3.5-flash; the `models` array gives automatic provider
 // failover on 5xx at no extra code cost (see plan "On live API only").
-const PRIMARY_MODEL = "google/gemini-3.7-flash";
-const FAILOVER_MODELS = [PRIMARY_MODEL, "google/gemini-2.5-flash", "google/gemini-2.0-flash-001"];
+const PRIMARY_MODEL = "google/gemini-3.5-flash";
+const FAILOVER_MODELS = [PRIMARY_MODEL, "google/gemini-2.5-flash", "openai/gpt-4o-mini"];
 
 function getClient() {
   const apiKey = process.env.OPENROUTER_API_KEY;

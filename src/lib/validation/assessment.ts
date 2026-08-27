@@ -14,7 +14,7 @@ export const generatedQuestionSchema = z.object({
   correctAnswer: z.string().min(1),
   explanation: z.string().min(5),
   /** 0..1 — how hard this item is. Feeds the engine's assessmentScore weighting; never a score itself. */
-  difficulty: z.number().min(0).max(1),
+  difficulty: z.coerce.number().min(0).max(5),
 });
 
 export const generatedAssessmentSchema = z.object({
@@ -46,6 +46,7 @@ export type GenerateDiagnosticRequest = z.infer<typeof generateDiagnosticRequest
 // ── Submission-side validation ──────────────────────────────────────────────
 
 export const submitAssessmentSchema = z.object({
+  hintsUsed: z.record(z.string(), z.number().int().min(0).max(4)).optional(),
   answers: z
     .array(
       z.object({

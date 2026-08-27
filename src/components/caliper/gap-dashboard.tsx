@@ -104,7 +104,7 @@ export function GapDashboard({ gaps, unknown }: { gaps: DashboardGap[]; unknown:
           const active = filter === f;
           const label = f === "ALL" ? `All (${counts.ALL})` : `${LABEL[f as GapSeverity].title} (${counts[f as string] ?? 0})`;
           return (
-            <button key={f} onClick={() => setFilter(f as GapSeverity | "ALL")} className={cn("rounded-full px-[14px] py-[7px] text-small font-medium border transition", active ? "bg-[color:var(--color-accent)] text-white border-transparent shadow-[var(--shadow-cta)]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)] text-foreground hover:bg-white")}>{label}</button>
+            <button key={f} onClick={() => setFilter(f as GapSeverity | "ALL")} className={cn("rounded-full px-[14px] py-[7px] text-small font-medium border transition", active ? "bg-[color:var(--color-accent)] text-white border-transparent shadow-[var(--shadow-cta)]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)] text-foreground hover:bg-[color:var(--color-surface-1)]")}>{label}</button>
           );
         })}
         <span className="ml-auto text-[11px] tabular-mono text-muted-foreground hidden md:inline">Sorted by priority · fixed formula</span>

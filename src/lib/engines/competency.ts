@@ -200,6 +200,12 @@ export interface EvidenceContribution {
  * recency is entirely a function of the `monthsSince` / `ageInAssessments`
  * fields already present in the input.
  */
+export const HINT_PENALTY_PER_HINT = 0.1;
+export const HINT_SCORE_FLOOR = 0.6;
+export function hintScoreMultiplier(hintsUsed: number): number {
+  return Math.max(HINT_SCORE_FLOOR, 1 - HINT_PENALTY_PER_HINT * hintsUsed);
+}
+
 export function scoreCompetency(input: ScoringInput): CompetencyScoreResult {
   const assessmentScore = computeAssessmentScore(input.assessmentAnswers);
   const priorTrainingScore = computePriorTrainingScore(input.priorTrainings);

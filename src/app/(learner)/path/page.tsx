@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { LearnerNav } from "@/components/learner-nav";
 import { PathTimeline, type PathTimelineItem } from "@/components/caliper/path-timeline";
 import { loadLearningPath } from "@/lib/recommendations/load-learning-path";
+import { Breadcrumbs, BreadcrumbItem } from "@astryxdesign/core/Breadcrumbs";
 
 export default async function PathPage() {
   const session = await requireRole("LEARNER");
@@ -13,15 +14,18 @@ export default async function PathPage() {
 
   return (
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
-      <div className="page-shell py-[32px] flex flex-col gap-[20px] max-w-[880px]">
+      <div className="mx-auto max-w-[880px] px-[20px] lg:px-[24px] py-[24px] flex flex-col gap-[16px]">
+        <Breadcrumbs>
+          <BreadcrumbItem href="/dashboard">Overview</BreadcrumbItem>
+          <BreadcrumbItem href="/courses">Courses</BreadcrumbItem>
+          <BreadcrumbItem isCurrent>Learning Path</BreadcrumbItem>
+        </Breadcrumbs>
         <div>
-          <p className="text-eyebrow text-[11px] tracking-[0.14em] text-[color:var(--color-accent)]">Learning Path</p>
-          <div className="flex flex-wrap items-start justify-between gap-[12px] mt-[6px]">
+          <div className="flex flex-wrap items-start justify-between gap-[12px] mt-[4px]">
             <div>
               <h1 className="text-[28px] md:text-[32px] font-[650] tracking-[-0.03em] leading-[1.05]">Your learning path</h1>
               <p className="text-body text-muted-foreground mt-[6px] max-w-[62ch]">Ordered by prerequisites first, then gap priority — packed into a {data?.maxWeeklyHours ?? 5}h weekly study budget. Professional pace, not Duolingo. Track, check off, and move forward.</p>
             </div>
-            <Link href="/courses" className="rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[14px] py-[8px] text-small font-medium hover:bg-white transition">← All recommendations</Link>
           </div>
           {weeks.length ? (
             <div className="mt-[14px] flex flex-wrap gap-[8px] text-[11px] tabular-mono">

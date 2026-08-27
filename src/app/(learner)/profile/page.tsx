@@ -8,7 +8,7 @@ function DomainTicks({ level }: { level: number | null }) {
   return (
     <div className="flex items-center gap-[3px]">
       {[1, 2, 3, 4, 5].map((i) => (
-        <span key={i} className={`size-[8px] rounded-full border ${level !== null && i <= Math.round(level) ? "bg-[#2E3AFF] border-[#2E3AFF]" : "bg-white border-[color:var(--color-border-resting)]"}`} />
+        <span key={i} className={`size-[8px] rounded-full border ${level !== null && i <= Math.round(level) ? "bg-[#2E3AFF] border-[#2E3AFF]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`} />
       ))}
     </div>
   );
@@ -52,25 +52,25 @@ export default async function ProfilePage() {
     <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[18px]">
         {/* Hero — advanced, not just avatar + 3 pills */}
-        <div className="rounded-[20px] border border-[color:var(--color-border-resting)] bg-[#141210] text-[#FFF8ED] overflow-hidden relative">
+        <div className="rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] overflow-hidden relative">
           <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ background: "radial-gradient(800px 400px at 18% 0%, white, transparent)" }} />
           <div className="relative p-[22px] md:p-[28px] flex flex-col lg:flex-row gap-[20px]">
             <div className="flex gap-[16px] flex-1 min-w-0">
-              <div className="size-[72px] rounded-[16px] bg-white text-[#141210] grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "O").slice(0, 1)}</div>
+              <div className="size-[72px] rounded-[16px] bg-[color:var(--color-surface-1)] text-[#141210] grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "O").slice(0, 1)}</div>
               <div className="min-w-0 flex-1">
                 <h1 className="text-[24px] md:text-[28px] font-[720] tracking-[-0.02em] leading-none">{session.user.name ?? "Officer"}</h1>
                 <p className="text-[13px] opacity-70 mt-[6px] truncate">{dbUser?.email} · {profile?.jobRole ?? "No role assigned"} {dbUser?.department ? `· ${dbUser.department.name}` : ""}</p>
                 <div className="mt-[12px] flex flex-wrap gap-[8px]">
-                  <span className="rounded-full bg-white text-[#141210] px-[12px] py-[6px] text-[11px] font-semibold">{assessed}/{total} measured</span>
-                  <span className="rounded-full bg-white/10 border border-white/15 px-[12px] py-[6px] text-[11px] font-medium">Avg {avgLevel} / 5</span>
-                  <span className={`rounded-full px-[12px] py-[6px] text-[11px] font-bold border ${gapBySeverity.CRITICAL ? "bg-[#F04438] border-[#F04438] text-white" : "bg-white/10 border-white/20"}`}>{gapBySeverity.CRITICAL ? `${gapBySeverity.CRITICAL} critical` : "No critical"}</span>
+                  <span className="rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[12px] py-[6px] text-[11px] font-semibold">{assessed}/{total} measured</span>
+                  <span className="rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/15 px-[12px] py-[6px] text-[11px] font-medium">Avg {avgLevel} / 5</span>
+                  <span className={`rounded-full px-[12px] py-[6px] text-[11px] font-bold border ${gapBySeverity.CRITICAL ? "bg-[#F04438] border-[#F04438] text-white" : "bg-[color:var(--color-surface-1)]/10 border-white/20"}`}>{gapBySeverity.CRITICAL ? `${gapBySeverity.CRITICAL} critical` : "No critical"}</span>
                 </div>
               </div>
             </div>
             <div className="lg:w-[340px] shrink-0 flex flex-col gap-[12px]">
-              <div className="rounded-[14px] bg-white/10 border border-white/15 p-[14px] flex items-center gap-[14px]">
+              <div className="rounded-[14px] bg-[color:var(--color-surface-1)]/10 border border-white/15 p-[14px] flex items-center gap-[14px]">
                 <div className="size-[56px] rounded-full border-[5px] border-white/20 relative grid place-items-center shrink-0" style={{ background: `conic-gradient(white ${completeness}%, transparent ${completeness}%)` }}>
-                  <div className="absolute inset-[5px] rounded-full bg-[#141210] grid place-items-center"><span className="num text-[13px] font-bold">{completeness}%</span></div>
+                  <div className="absolute inset-[5px] rounded-full bg-[color:var(--color-ink)] grid place-items-center"><span className="num text-[13px] font-bold">{completeness}%</span></div>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold tracking-[0.08em] uppercase opacity-60">Profile completeness</p>
@@ -78,8 +78,8 @@ export default async function ProfilePage() {
                 </div>
               </div>
               <div className="flex gap-[8px]">
-                <Link href="/settings" className="flex-1 rounded-full bg-white text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
-                <Link href="/gaps" className="flex-1 rounded-full bg-white/10 border border-white/20 text-white px-[14px] py-[8px] text-[13px] font-medium text-center">View gaps</Link>
+                <Link href="/settings" className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
+                <Link href="/gaps" className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/20 text-white px-[14px] py-[8px] text-[13px] font-medium text-center">View gaps</Link>
               </div>
             </div>
           </div>
@@ -99,7 +99,7 @@ export default async function ProfilePage() {
                   { k: "Education", v: profile?.education ?? "—" },
                   { k: "Member since", v: profile ? new Date(profile.createdAt).toLocaleDateString() : "—" },
                 ].map((f) => (
-                  <div key={f.k} className="rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
+                  <div key={f.k} className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
                     <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">{f.k}</p>
                     <p className="text-[13px] font-medium mt-[4px] truncate">{f.v}</p>
                   </div>
@@ -112,7 +112,7 @@ export default async function ProfilePage() {
               <p className="text-[12px] text-muted-foreground mt-[2px]">Measured, not mocked. Dots = level / 5.</p>
               <div className="mt-[14px] flex flex-col gap-[12px]">
                 {perDomain.map((d) => (
-                  <div key={d.id} className="flex items-center gap-[12px] rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
+                  <div key={d.id} className="flex items-center gap-[12px] rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
                     <div className="flex-1 min-w-0">
                       <p className="text-[12px] font-semibold leading-none truncate" title={d.name}>{d.name}</p>
                       <p className="text-[11px] tabular-mono text-muted-foreground mt-[4px]">{d.count}/{d._count.competencies} assessed</p>
@@ -136,13 +136,13 @@ export default async function ProfilePage() {
                 <ol className="mt-[14px] relative flex flex-col gap-[0px] before:absolute before:left-[11px] before:top-[8px] before:bottom-[16px] before:w-px before:bg-[color:var(--color-border-resting)]">
                   {quizAttempts.map((q) => (
                     <li key={q.id} className="relative flex gap-[12px] pl-[28px] py-[10px]">
-                      <span className={`absolute left-0 top-[14px] size-[10px] rounded-full border-2 ${q.submittedAt ? "bg-[#12B76A] border-[#12B76A]" : "bg-white border-[color:var(--color-border-resting)]"}`} />
-                      <div className="flex-1 min-w-0 rounded-[12px] border border-[color:var(--color-border-resting)] bg-[#FFFCF7] px-[12px] py-[10px] flex items-center gap-[10px]">
+                      <span className={`absolute left-0 top-[14px] size-[10px] rounded-full border-2 ${q.submittedAt ? "bg-[#12B76A] border-[#12B76A]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`} />
+                      <div className="flex-1 min-w-0 rounded-[12px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[10px] flex items-center gap-[10px]">
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-medium truncate">Diagnostic · {q.assessment.competencies.length} competencies</p>
                           <p className="text-[11px] tabular-mono text-muted-foreground">{new Date(q.startedAt).toLocaleDateString()} · {q.submittedAt ? `Score ${Number(q.score ?? 0).toFixed(0)}/100` : "In progress"}</p>
                         </div>
-                        <span className={`shrink-0 rounded-full px-[8px] py-[3px] text-[11px] font-semibold border ${q.submittedAt ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-white border-[color:var(--color-border-resting)]"}`}>{q.submittedAt ? "Completed" : "Ongoing"}</span>
+                        <span className={`shrink-0 rounded-full px-[8px] py-[3px] text-[11px] font-semibold border ${q.submittedAt ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`}>{q.submittedAt ? "Completed" : "Ongoing"}</span>
                       </div>
                     </li>
                   ))}
@@ -158,11 +158,11 @@ export default async function ProfilePage() {
               {gaps.length ? (
                 <div className="mt-[12px] flex flex-col gap-[8px]">
                   {gaps.slice(0, 5).map((g) => (
-                    <div key={g.id} className="flex items-center gap-[10px] rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
+                    <div key={g.id} className="flex items-center gap-[10px] rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
                       <span className={`size-2 rounded-full shrink-0 ${g.severity === "CRITICAL" ? "bg-[#F04438]" : g.severity === "LOW" ? "bg-[#12B76A]" : "bg-[#E5A100]"}`} />
                       <span className="text-[13px] font-medium flex-1 truncate">{g.competency.name}</span>
                       <span className="text-[11px] tabular-mono text-muted-foreground">Lv {g.currentLevel} → {g.requiredLevel}</span>
-                      <span className={`text-[10px] font-bold tracking-wide px-[7px] py-[3px] rounded-full border ${g.severity === "CRITICAL" ? "bg-[#FFF1F0] text-[#C9190B] border-[#FECACA]" : "bg-white border-[color:var(--color-border-resting)]"}`}>{g.severity}</span>
+                      <span className={`text-[10px] font-bold tracking-wide px-[7px] py-[3px] rounded-full border ${g.severity === "CRITICAL" ? "bg-[#FFF1F0] text-[#C9190B] border-[#FECACA]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`}>{g.severity}</span>
                     </div>
                   ))}
                 </div>

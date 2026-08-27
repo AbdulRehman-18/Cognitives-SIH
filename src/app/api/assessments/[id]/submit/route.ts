@@ -19,6 +19,7 @@ export async function POST(
     const { id: assessmentId } = await params;
 
     const body = await request.json().catch(() => ({}));
+    const hintsUsedRaw = (body as any).hintsUsed as Record<string, number> | undefined;
     const parsed = submitAssessmentSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -172,11 +173,19 @@ export async function POST(
         ageInAssessments: index,
       }));
 
-      const result = scoreCompetency({
+      let result = scoreCompetency({
         assessmentAnswers,
         priorTrainings: [],
         assessmentHistory,
       });
+      // Hint penalty: score_multiplier = max(0.6, 1 - 0.1*hints_used) per spec
+      const hintsForCompetency = answers.reduce((s, a) => s + (hintsUsedRaw?.[a.questionId] ?? 0), 0);
+      if (hintsForCompetency > 0 && result.current !== null) {
+        const mult = Math.max(0.6, 1 - 0.1 * hintsForCompetency);
+        result = { ...result, current: result.current * mult, evidenceJson: result } as typeof result;
+        // keep level in sync
+        (result as any).level = Math.max(1, Math.min(5, Math.ceil((result.current as number) / 20)));
+      }
 
       const userCompetency = await db.userCompetency.upsert({
         where: { userId_competencyId: { userId: session.user.id, competencyId } },
@@ -235,7 +244,7 @@ export async function POST(
         action: "ASSESSMENT_SUBMITTED",
         resourceType: "QuizAttempt",
         resourceId: quizAttempt.id,
-        metadataJson: { assessmentId: assessment.id, competencyCount: results.length },
+        metadataJson: { assessmentId: assessment.id, competencyCount: results.length, hintsUsed: hintsUsedRaw ?? {} },
       },
     });
 

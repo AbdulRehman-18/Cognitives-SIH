@@ -54,10 +54,10 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
 
   return (
     <div className="grid gap-[16px] lg:grid-cols-[1fr_320px]">
-      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-[20px] border border-[color:var(--color-border-resting)] bg-white shadow-[var(--shadow-card)]">
+      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-card)]">
         {/* Mode rail — pill */}
         <div className="flex flex-wrap items-center justify-between gap-[12px] border-b border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)]/60 px-[12px] py-[10px]">
-          <div className="flex rounded-full border border-[color:var(--color-border-resting)] bg-white p-[3px] shadow-sm">
+          <div className="flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[3px] shadow-sm">
             {(["explain", "guide", "quiz"] as TutorMode[]).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={cn("rounded-full px-[14px] py-[7px] text-[12px] font-semibold tracking-wide capitalize transition", mode === m ? "bg-[color:var(--color-accent)] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                 {m === "explain" ? "Explain" : m === "guide" ? "Guide me" : "Quiz me"}
@@ -70,9 +70,9 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           </span>
         </div>
 
-        <div ref={listRef} className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[16px] py-[16px] bg-[#FFFCF7]/50">
+        <div ref={listRef} className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[16px] py-[16px] bg-[color:var(--color-surface-1)]/60">
           {messages.length === 0 && (
-            <div className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-white p-[16px] shadow-sm">
+            <div className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[16px] shadow-sm">
               <p className="text-small font-semibold">Start grounded. No guesswork.</p>
               <p className="text-small text-muted-foreground leading-relaxed mt-[4px]">Ask anything covered in trainer-uploaded material. The tutor retrieves first, answers only from those chunks, and cites every claim. Try one:</p>
               <div className="mt-[12px] flex flex-wrap gap-[8px]">
@@ -91,7 +91,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
             </div>
           )}
           {messages.map((m, i) => (
-            <div key={i} className={cn("max-w-[88%] rounded-[16px] px-[14px] py-[12px] text-[14px] leading-relaxed shadow-sm", m.role === "user" ? "self-end bg-[color:var(--color-accent)] text-white rounded-br-[6px]" : "self-start bg-white border border-[color:var(--color-border-resting)] rounded-bl-[6px]")}>
+            <div key={i} className={cn("max-w-[88%] rounded-[16px] px-[14px] py-[12px] text-[14px] leading-relaxed shadow-sm", m.role === "user" ? "self-end bg-[color:var(--color-accent)] text-white rounded-br-[6px]" : "self-start bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] rounded-bl-[6px]")}>
               <p className="whitespace-pre-wrap">{m.content || (streaming && i === messages.length - 1 ? "Calibrating to your gaps…" : "")}</p>
               {m.role === "assistant" && m.citations && m.citations.length > 0 && (
                 <div className="mt-[12px] flex flex-col gap-[8px]">
@@ -115,7 +115,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           </div>
         )}
 
-        <form onSubmit={(e) => { e.preventDefault(); if (input.trim() && !streaming) send(input.trim()); }} className="flex gap-[8px] border-t border-[color:var(--color-border-resting)] bg-white p-[12px]">
+        <form onSubmit={(e) => { e.preventDefault(); if (input.trim() && !streaming) send(input.trim()); }} className="flex gap-[8px] border-t border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[12px]">
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={mode === "quiz" ? "What topic should I quiz you on?" : mode === "guide" ? "Ask to be guided — I’ll ask one question at a time…" : "Ask about your course material… I’ll retrieve first, then answer with citations."} className="flex-1 rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)] px-[16px] py-[10px] text-[14px] outline-none focus:border-[color:var(--color-accent)] focus:ring-2 focus:ring-[color:var(--color-accent)]/15" disabled={streaming} />
           <Button type="submit" disabled={streaming || !input.trim()} className="rounded-full px-[20px]">{streaming ? "…" : "Send"}</Button>
         </form>
@@ -126,8 +126,8 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           <p className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">How this tutor earns trust</p>
           <ol className="mt-[12px] space-y-[10px]">
             <li className="flex gap-[10px]"><span className="size-6 rounded-full bg-[color:var(--color-accent)] text-white grid place-items-center text-[11px] font-bold shrink-0">01</span><span className="text-small leading-relaxed"><b>Retrieves first</b> — top chunks from your uploaded material, ranked by similarity.</span></li>
-            <li className="flex gap-[10px]"><span className="size-6 rounded-full bg-white border border-[color:var(--color-border-resting)] grid place-items-center text-[11px] font-bold shrink-0">02</span><span className="text-small leading-relaxed"><b>Refuses if no match</b> — never hallucinates. Out-of-scope is declined.</span></li>
-            <li className="flex gap-[10px]"><span className="size-6 rounded-full bg-white border border-[color:var(--color-border-resting)] grid place-items-center text-[11px] font-bold shrink-0">03</span><span className="text-small leading-relaxed"><b>Answers only from citations</b> — calibrated to your gaps & learning path.</span></li>
+            <li className="flex gap-[10px]"><span className="size-6 rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] grid place-items-center text-[11px] font-bold shrink-0">02</span><span className="text-small leading-relaxed"><b>Refuses if no match</b> — never hallucinates. Out-of-scope is declined.</span></li>
+            <li className="flex gap-[10px]"><span className="size-6 rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] grid place-items-center text-[11px] font-bold shrink-0">03</span><span className="text-small leading-relaxed"><b>Answers only from citations</b> — calibrated to your gaps & learning path.</span></li>
           </ol>
           <div className="mt-[14px] rounded-[12px] bg-[#1A1A1A] text-white p-[12px]">
             <p className="text-[11px] tracking-[0.08em] uppercase font-semibold opacity-60">Why it’s goated</p>
@@ -138,8 +138,8 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           <p className="text-small font-semibold">A tutor, not a chatbot</p>
           <p className="text-small leading-relaxed mt-[6px] opacity-90">Switch to <b>Guide me</b> to be questioned step-by-step, or <b>Quiz me</b> for an instant cited MCQ from the same source chunks. Every answer stays grounded.</p>
           <div className="mt-[12px] flex gap-[8px]">
-            <button onClick={() => setMode("guide")} className="flex-1 rounded-full bg-white text-[color:var(--color-accent)] py-[8px] text-[12px] font-semibold">Try Guide me</button>
-            <button onClick={() => setMode("quiz")} className="flex-1 rounded-full bg-white/15 border border-white/30 text-white py-[8px] text-[12px] font-semibold backdrop-blur">Try Quiz me</button>
+            <button onClick={() => setMode("guide")} className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-[color:var(--color-accent)] py-[8px] text-[12px] font-semibold">Try Guide me</button>
+            <button onClick={() => setMode("quiz")} className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/15 border border-white/30 text-white py-[8px] text-[12px] font-semibold backdrop-blur">Try Quiz me</button>
           </div>
         </div>
         <div className="rounded-[16px] border border-dashed border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)]/50 p-[12px]">

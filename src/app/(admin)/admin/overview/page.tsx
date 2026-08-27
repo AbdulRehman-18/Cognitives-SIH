@@ -49,7 +49,7 @@ function DeptColumns({ items }: { items: { name: string; gaps: number; crit: num
             <div key={it.name} className="flex-1 min-w-[88px] flex flex-col items-center gap-[8px]">
               <span className="num text-[12px] font-semibold tabular-mono leading-none">{it.gaps}</span>
               <div className="w-full relative flex justify-center" style={{ height: h }}>
-                <div className="absolute bottom-0 w-full max-w-[64px] rounded-t-[10px] border border-[color:var(--color-border-resting)] bg-white overflow-hidden flex flex-col justify-end">
+                <div className="absolute bottom-0 w-full max-w-[64px] rounded-t-[10px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] overflow-hidden flex flex-col justify-end">
                   <div className="w-full" style={{ height: `${(it.gaps / max) * 100}%`, background: it.crit ? "linear-gradient(to top, #F04438 0%, #FFD6D0 100%)" : "linear-gradient(to top, #2E3AFF 0%, #E0E3FF 100%)`".replace("`",""), borderTop: it.crit ? "2px solid #F04438" : "2px solid #2E3AFF" }} />
                 </div>
               </div>
@@ -132,7 +132,7 @@ export default async function AdminOverviewPage() {
             </div>
             <p className="text-[13px] text-muted-foreground mt-[4px]">Column height = total gaps; warm cap = critical share. Scroll sideways on mobile.</p>
 
-            <div className="mt-[18px] rounded-[12px] border border-[color:var(--color-border-resting)] bg-[#FFFCF7] p-[12px]">
+            <div className="mt-[18px] rounded-[12px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[12px]">
               <DeptColumns items={sortedDepts.map((d) => ({ name: d.name, gaps: d.gapCount, crit: d.criticalCount, learners: d.learnerCount, trainers: d.trainerCount }))} />
             </div>
 
@@ -156,13 +156,13 @@ export default async function AdminOverviewPage() {
               <div className="mt-[16px]">
                 <SeverityDonut data={donutData} />
               </div>
-              <p className="text-[12px] leading-relaxed mt-[14px] rounded-[10px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">Trainers carry <b>{docCount}</b> grounded sources to close the <b className="text-[#C9190B]">{severityMap.get("CRITICAL") ?? 0} critical</b> gaps first.</p>
+              <p className="text-[12px] leading-relaxed mt-[14px] rounded-[10px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">Trainers carry <b>{docCount}</b> grounded sources to close the <b className="text-[#C9190B]">{severityMap.get("CRITICAL") ?? 0} critical</b> gaps first.</p>
             </section>
 
-            <section className="rounded-[16px] bg-[#141210] text-[#FFF8ED] p-[20px]">
+            <section className="rounded-[16px] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] p-[20px]">
               <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase opacity-70">How to use this page</h2>
               <p className="text-[14px] leading-[1.6] mt-[8px]">This is aggregate intelligence — no personal scores. Use the columns to spot which division needs an NSSTA batch, then drill into department → role → skill.</p>
-              <Link href="/admin/shortages" className="mt-[14px] inline-flex rounded-full bg-white text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold">See shortages →</Link>
+              <Link href="/admin/shortages" className="mt-[14px] inline-flex rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold">See shortages →</Link>
             </section>
           </div>
         </div>

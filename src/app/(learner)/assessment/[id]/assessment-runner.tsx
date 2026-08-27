@@ -9,6 +9,7 @@ import { AiErrorState, type AiErrorKind } from "@/components/caliper/ai-error-st
 import { AssessmentResults, type CompetencyResult } from "@/app/(learner)/assessment/[id]/assessment-results";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { HintButton } from "@/components/assessment/hint-button";
 
 export interface RunnerQuestion {
   id: string;
@@ -46,6 +47,7 @@ export function AssessmentRunner({
   const [status, setStatus] = React.useState<SubmitStatus>("answering");
   const [errorKind, setErrorKind] = React.useState<AiErrorKind>("NETWORK");
   const [results, setResults] = React.useState<CompetencyResult[] | null>(null);
+  const [hintsUsed, setHintsUsed] = React.useState<Record<string, number>>({});
 
   const current = questions[index];
   const total = questions.length;
@@ -80,6 +82,7 @@ export function AssessmentRunner({
             questionId,
             selectedAnswer,
           })),
+          hintsUsed,
         }),
       });
 
@@ -211,6 +214,10 @@ export function AssessmentRunner({
               })}
             </div>
           </fieldset>
+          <div className="pt-3 border-t border-border/60 mt-1">
+            <HintButton questionId={current.id} attemptId={assessmentId} onHintUsed={(c)=> setHintsUsed(h=> ({...h, [current.id]: c}))} />
+            {hintsUsed[current.id] ? <p className="text-[11px] text-muted-foreground mt-1.5">Hints on this question: {hintsUsed[current.id]} · affects competency score</p> : null}
+          </div>
         </CardContent>
       </Card>
 

@@ -58,7 +58,7 @@ export default async function AdminDepartmentsPage() {
         </div>
 
         {deptStats.length === 0 ? (
-          <div className="rounded-[16px] border border-dashed border-[color:var(--color-border-resting)] bg-[#FFFCF7] px-[20px] py-[24px] text-center text-[14px] text-muted-foreground">No divisions seeded. Create departments in Prisma seed.</div>
+          <div className="rounded-[16px] border border-dashed border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[20px] py-[24px] text-center text-[14px] text-muted-foreground">No divisions seeded. Create departments in Prisma seed.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-[14px]">
             {deptStats.map((d) => {
@@ -68,7 +68,7 @@ export default async function AdminDepartmentsPage() {
                 <Link
                   key={d.id}
                   href={`/admin/departments/${d.id}`}
-                  className="group relative rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px] flex flex-col gap-[14px] hover:border-[#C6C2BA] hover:bg-white transition-colors"
+                  className="group relative rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px] flex flex-col gap-[14px] hover:border-[#C6C2BA] hover:bg-[color:var(--color-surface-1)] transition-colors"
                 >
                   <div className="flex items-start justify-between gap-[12px]">
                     <div className="min-w-0 flex-1">
@@ -79,13 +79,13 @@ export default async function AdminDepartmentsPage() {
                         <p className="text-[12px] text-muted-foreground mt-[4px]">{d.roleCount} roles represented · {d.assessed} competencies assessed</p>
                       )}
                     </div>
-                    <span className={`shrink-0 rounded-full px-[10px] py-[5px] text-[11px] font-semibold border ${d.crit ? "bg-[#FFF1F0] text-[#C9190B] border-[#FECACA]" : hasGaps ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[#FFFCF7] text-muted-foreground border-[color:var(--color-border-resting)]"}`}>
+                    <span className={`shrink-0 rounded-full px-[10px] py-[5px] text-[11px] font-semibold border ${d.crit ? "bg-[#FFF1F0] text-[#C9190B] border-[#FECACA]" : hasGaps ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[color:var(--color-surface-1)] text-muted-foreground border-[color:var(--color-border-resting)]"}`}>
                       {d.crit ? `${d.crit} critical` : hasGaps ? "No critical" : "No gaps"}
                     </span>
                   </div>
 
                   {/* Actual data row — no mock, no donut, just readable figures */}
-                  <div className="grid grid-cols-3 gap-[10px] rounded-[12px] bg-[#FFFCF7] border border-[color:var(--color-border-resting)] p-[12px]">
+                  <div className="grid grid-cols-3 gap-[10px] rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[12px]">
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted-foreground">Learners</p>
                       <p className="num text-[22px] font-[700] leading-none mt-[4px]">{d.learners}</p>
@@ -116,7 +116,7 @@ export default async function AdminDepartmentsPage() {
                         const v = d.bySeverity.get(sev.k as "CRITICAL" | "HIGH" | "MEDIUM" | "LOW") ?? 0;
                         if (!v) return null;
                         return (
-                          <span key={sev.k} className="inline-flex items-center gap-[6px] rounded-full bg-white border border-[color:var(--color-border-resting)] px-[8px] py-[4px] text-[11px] tabular-mono">
+                          <span key={sev.k} className="inline-flex items-center gap-[6px] rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[8px] py-[4px] text-[11px] tabular-mono">
                             <span className="size-2 rounded-full" style={{ background: sev.c }} />{sev.k.toLowerCase()} {v}
                           </span>
                         );

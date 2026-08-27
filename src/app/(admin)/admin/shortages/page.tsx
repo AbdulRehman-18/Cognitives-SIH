@@ -59,7 +59,7 @@ export default async function AdminShortagesPage() {
             <p className="text-[12px] font-semibold tracking-[0.06em] uppercase text-muted-foreground">Competencies hit</p>
             <p className="text-[13px] text-muted-foreground mt-[4px]">Distinct bottlenecks to schedule.</p>
           </div>
-          <div className="rounded-[16px] bg-[#141210] text-[#FFF8ED] p-[18px] flex flex-col justify-center">
+          <div className="rounded-[16px] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] p-[18px] flex flex-col justify-center">
             <p className="text-[11px] font-semibold tracking-[0.08em] uppercase opacity-60">Peak exposure</p>
             <p className="text-[16px] font-semibold leading-tight mt-[6px] truncate">{shortages[0]?.name ?? "—"}</p>
             <p className="text-[12px] opacity-70 mt-[2px]">{shortages[0] ? `${shortages[0].count} officers · ${shortages[0].domain}` : "No exposure"}</p>
@@ -70,7 +70,7 @@ export default async function AdminShortagesPage() {
           <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px]">
             <h2 className="text-[16px] font-[650]">Exposure columns</h2>
             <p className="text-[13px] text-muted-foreground mt-[2px]">Height shows officers critically gapped. Side-scroll on mobile.</p>
-            <div className="mt-[16px] rounded-[12px] border border-[color:var(--color-border-resting)] bg-[#FFFCF7] p-[10px]">
+            <div className="mt-[16px] rounded-[12px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[10px]">
               <ShortageColumns items={shortages.slice(0, 8).map((s) => ({ name: s.name, domain: s.domain, count: s.count }))} />
             </div>
           </section>
@@ -79,13 +79,13 @@ export default async function AdminShortagesPage() {
         <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px]">
           <h2 className="text-[16px] font-[650]">Shortages by competency — department flow</h2>
           {shortages.length === 0 ? (
-            <p className="text-[14px] text-muted-foreground mt-[10px] rounded-[12px] border border-dashed px-[14px] py-[16px] text-center bg-[#FFFCF7]">No critical gaps recorded.</p>
+            <p className="text-[14px] text-muted-foreground mt-[10px] rounded-[12px] border border-dashed px-[14px] py-[16px] text-center bg-[color:var(--color-surface-1)]">No critical gaps recorded.</p>
           ) : (
             <div className="mt-[14px] flex flex-col gap-[10px]">
               {shortages.map((s) => {
                 const depts = Array.from(s.deptCounts.entries()).sort((a, b) => b[1] - a[1]);
                 return (
-                  <div key={s.name} className="rounded-[14px] border border-[color:var(--color-border-resting)] bg-[#FFFCF7] p-[14px]">
+                  <div key={s.name} className="rounded-[14px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[14px]">
                     <div className="flex flex-wrap items-baseline justify-between gap-[8px]">
                       <div>
                         <p className="text-[14px] font-semibold">{s.name}</p>
@@ -94,11 +94,11 @@ export default async function AdminShortagesPage() {
                       <span className="shrink-0 rounded-full bg-[#F04438] text-white px-[10px] py-[4px] text-[11px] font-bold tracking-wide">{s.count} critical</span>
                     </div>
                     <div className="mt-[12px] flex items-center gap-[8px] overflow-x-auto pb-[2px] scrollbar-thin">
-                      <span className="shrink-0 rounded-full bg-[#141210] text-white px-[12px] py-[6px] text-[12px] font-semibold">{s.name}</span>
+                      <span className="shrink-0 rounded-full bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] px-[12px] py-[6px] text-[12px] font-semibold">{s.name}</span>
                       <span className="shrink-0 text-muted-foreground">→</span>
                       <div className="flex items-center gap-[8px] shrink-0">
                         {depts.map(([dn, c]) => (
-                          <span key={dn} className="inline-flex items-center gap-[6px] rounded-full bg-white border border-[color:var(--color-border-resting)] px-[12px] py-[6px] text-[12px] tabular-mono shadow-sm">
+                          <span key={dn} className="inline-flex items-center gap-[6px] rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[6px] text-[12px] tabular-mono shadow-sm">
                             <span className="size-2 rounded-full bg-[#F04438]" />{dn}: <b>{c}</b>
                           </span>
                         ))}

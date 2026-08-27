@@ -25,7 +25,7 @@ export function DomainMatrix({ domains, className }: DomainMatrixProps) {
       {domains.map((d, i) => (
         <div
           key={d.domainCode}
-          className="token-entrance-stagger flex flex-col gap-[16px] rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px] shadow-[var(--shadow-card)] transition-all duration-[200ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white hover:border-[color:var(--color-border-hover)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-[1px] focus-within:ring-[1px] focus-within:ring-[color:var(--color-accent)]"
+          className="token-entrance-stagger flex flex-col gap-[16px] rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px] shadow-[var(--shadow-card)] transition-all duration-[200ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[color:var(--color-surface-1)] hover:border-[color:var(--color-border-hover)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-[1px] focus-within:ring-[1px] focus-within:ring-[color:var(--color-accent)]"
           style={{ ["--stagger" as string]: i } as React.CSSProperties}
         >
           <div className="flex items-center justify-between">

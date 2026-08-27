@@ -9,7 +9,7 @@ import { AiError, withAiErrorHandling, classifyAiError } from "@/lib/ai/errors";
 // Same generateObject contract as openrouter.ts: Zod schema in, validated
 // object out, never free-text parsing. Structured output uses Gemini's
 // native responseSchema/responseMimeType JSON mode.
-const GENERATION_MODEL = "gemini-2.5-flash";
+const GENERATION_MODEL = "gemini-3.5-flash";
 
 let client: GoogleGenAI | null = null;
 
@@ -28,9 +28,16 @@ export const geminiProvider: AiProvider = {
   async generateObject<T>(opts: GenerateObjectOptions<T>): Promise<T> {
     return withAiErrorHandling(async () => {
       const ai = getClient();
+      // Convert Zod schema to JSON Schema (draft-7). The @google/genai SDK
+      // (v1.9+) uses two separate fields:
+      //   - responseSchema     → Gemini's native Schema type (limited keywords)
+      //   - responseJsonSchema → full JSON Schema (minLength, minItems,
+      //                          additionalProperties, etc. all honoured)
+      // Passing our converted schema via responseSchema silently drops those
+      // extra keywords, producing unconstrained output that then fails Zod
+      // validation — the root cause of "Response didn't match the expected
+      // format". We use responseJsonSchema directly so nothing is lost.
       const jsonSchema = z.toJSONSchema(opts.schema, { target: "draft-7" });
-      // Gemini's responseSchema rejects a top-level $schema key.
-      delete (jsonSchema as { $schema?: string }).$schema;
 
       const contents = opts.system
         ? `${opts.system}\n\n${opts.prompt}`
@@ -43,7 +50,7 @@ export const geminiProvider: AiProvider = {
           responseMimeType: "application/json",
           maxOutputTokens: opts.maxOutputTokens,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          responseSchema: jsonSchema as any,
+          responseJsonSchema: jsonSchema as any,
         },
       });
 
