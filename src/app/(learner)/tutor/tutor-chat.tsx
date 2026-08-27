@@ -23,6 +23,17 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
   const [streaming, setStreaming] = useState(false);
   const [errorKind, setErrorKind] = useState<AiErrorKind | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef("");
+  const rafRef = useRef<number | null>(null);
+  function flushNow() {
+    if (!pendingRef.current) return;
+    const chunk = pendingRef.current; pendingRef.current = "";
+    setMessages((prev) => { const c = [...prev]; const last = c[c.length-1]; if (last?.role==="assistant") last.content += chunk; return [...c]; });
+  }
+  function scheduleFlush() {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(()=>{ rafRef.current=null; flushNow(); });
+  }
 
   async function send(content: string) {
     const next = [...messages, { role: "user", content } as ChatMessage];
@@ -44,9 +55,10 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           buffer = buffer.slice(sep + 2); headerParsed = true;
           setMessages((prev) => { const c = [...prev]; const last = c[c.length - 1]; if (last?.role === "assistant") { last.citations = citations; last.refused = refused; } return c; });
         }
-        if (headerParsed && buffer) { const text = buffer; buffer = ""; setMessages((prev) => { const c = [...prev]; const last = c[c.length - 1]; if (last?.role === "assistant") last.content += text; return c; }); }
-      }
-      if (buffer) setMessages((prev) => { const c = [...prev]; const last = c[c.length - 1]; if (last?.role === "assistant") last.content += buffer; return c; });
+        if (headerParsed && buffer) { const text = buffer; buffer = ""; // batch: mutate via ref + flush on rAF
+          pendingRef.current += text; scheduleFlush(); }
+       }
+       if (buffer) { pendingRef.current += buffer; scheduleFlush(); flushNow(); }
     } catch { setErrorKind("NETWORK"); } finally { setStreaming(false); setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50); }
   }
 

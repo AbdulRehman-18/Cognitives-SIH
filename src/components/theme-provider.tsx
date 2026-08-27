@@ -14,18 +14,41 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 // no upstream fix as of this writing. We filter only this exact message so
 // real hydration mismatches are never silently hidden.
 if (typeof window !== "undefined") {
-  const originalError = console.error;
-  console.error = (...args: unknown[]) => {
-    const first = args[0];
-    if (
-      typeof first === "string" &&
-      (first.includes("Encountered a script tag while rendering React component") ||
-        first.includes("SECURITY WARNING: The SSL modes"))
-    ) {
-      return;
-    }
-    originalError(...args);
-  };
+  const originalError = console.error.bind(console);
+  let patched = false;
+  // Patch once, lazily — avoids re-patching on HMR re-execution
+  if (!(console.error as unknown as { __patched?: boolean }).__patched) {
+    patched = true;
+    console.error = (...args: unknown[]) => {
+      const first = args[0];
+      if (typeof first === "string") {
+        if (
+          first.includes("Encountered a script tag while rendering React component") ||
+          first.includes("SECURITY WARNING: The SSL modes")
+        ) return;
+        // Browser extensions (e.g. Samsung Internet, Everhour, Grammarly) inject
+        // attributes like bis_skin_checked, bis_register, __processed_*, data-* before
+        // React hydrates, causing a false-positive hydration mismatch. Suppress only
+        // the mismatch warning when it is clearly extension-induced.
+        if (
+          first.includes("A tree hydrated but some attributes") ||
+          first.includes("Hydration failed") ||
+          first.includes("hydration mismatch")
+        ) {
+          const all = args.map((a) => String(a)).join(" ");
+          if (
+            all.includes("bis_skin_checked") ||
+            all.includes("bis_register") ||
+            all.includes("__processed_") ||
+            all.includes("bis_")
+          ) return;
+        }
+      }
+      originalError(...args);
+    };
+    (console.error as unknown as { __patched: boolean }).__patched = true;
+  }
+  void patched;
 }
 
 export function ThemeProvider({

@@ -106,38 +106,32 @@ export function AssessmentRunner({
     }
   }, [assessmentId, answers, resultsHref, router]);
 
-  // Keyboard navigation: digit keys 1-4 select an option, Enter/ArrowRight
-  // advances (or submits on the last question), ArrowLeft goes back.
-  React.useEffect(() => {
-    if (status !== "answering" || !current) return;
+  // Keyboard navigation — use refs to avoid re-subscribing on every answer change.
+  const stateRef = React.useRef({ status, current, answers, answeredCount, total, isLast });
+  React.useEffect(() => { stateRef.current = { status, current, answers, answeredCount, total, isLast }; });
+  const stableSelect = React.useRef(selectOption); React.useEffect(()=>{ stableSelect.current = selectOption; });
+  const stableSubmit = React.useRef(submit); React.useEffect(()=>{ stableSubmit.current = submit; });
+  const stableGoNext = React.useRef(goNext); React.useEffect(()=>{ stableGoNext.current = goNext; });
+  const stableGoPrev = React.useRef(goPrev); React.useEffect(()=>{ stableGoPrev.current = goPrev; });
 
+  React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!current) return;
+      const { status: s, current: c, answers: a, answeredCount: ac, total: t, isLast: last } = stateRef.current;
+      if (s !== "answering" || !c) return;
       const digit = Number(e.key);
-      if (digit >= 1 && digit <= current.options.length) {
-        selectOption(current.options[digit - 1]);
-        return;
-      }
+      if (digit >= 1 && digit <= c.options.length) { stableSelect.current(c.options[digit - 1]); return; }
       const isArrowRight = e.key === "ArrowRight" || e.code === "ArrowRight";
       const isArrowLeft = e.key === "ArrowLeft" || e.code === "ArrowLeft";
-
-      if (isArrowRight || (e.key === "Enter" && answers[current.id])) {
+      if (isArrowRight || (e.key === "Enter" && a[c.id])) {
         e.preventDefault();
-        if (isLast) {
-          if (answeredCount === total) void submit();
-        } else if (answers[current.id]) {
-          goNext();
-        }
+        if (last) { if (ac === t) void stableSubmit.current(); }
+        else if (a[c.id]) stableGoNext.current();
       }
-      if (isArrowLeft) {
-        e.preventDefault();
-        goPrev();
-      }
+      if (isArrowLeft) { e.preventDefault(); stableGoPrev.current(); }
     }
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [status, current, answers, answeredCount, total, isLast, selectOption, goNext, goPrev, submit]);
+  }, []);
 
   if (status === "done" && results) {
     return <AssessmentResults results={results} />;
