@@ -31,6 +31,7 @@ export const openrouterProvider: AiProvider = {
         schemaDescription: opts.schemaDescription,
         prompt: opts.prompt,
         system: opts.system,
+        maxOutputTokens: opts.maxOutputTokens,
       });
       return result.object as T;
     });
