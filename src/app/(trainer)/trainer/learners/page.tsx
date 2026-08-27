@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { TrainerNav } from "@/components/trainer-nav";
 import HierarchyTree from "./hierarchy-tree";
 
 export default async function TrainerLearnersPage() {
@@ -60,7 +61,7 @@ export default async function TrainerLearnersPage() {
   const totalAttempts = assessments.reduce((s, a) => s + a.attempts.length, 0);
 
   return (
-    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+     <AppShell nav={<TrainerNav />} roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[20px]">
         <div className="max-w-[720px]">
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Learners</h1>

@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ProcessingState, type ProcessingStage } from "@/components/caliper/processing-state";
 import { FileText, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -124,15 +126,22 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentS
                     {new Date(doc.createdAt).toLocaleString()}
                   </span>
                 </div>
-                {doc.processingStatus === "READY" ? (
-                  <span
-                    className={cn(
-                      "tabular-mono rounded-full border border-[color:var(--color-target)]/40 px-2 py-0.5 text-xs text-[color:var(--color-target)]",
-                    )}
-                  >
-                    {doc.chunkCount} chunks
-                  </span>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {doc.processingStatus === "READY" ? (
+                    <>
+                      <span
+                        className={cn(
+                          "tabular-mono rounded-full border border-[color:var(--color-target)]/40 px-2 py-0.5 text-xs text-[color:var(--color-target)]",
+                        )}
+                      >
+                        {doc.chunkCount} chunks
+                      </span>
+                      <Link href="/trainer/assessments" className={cn(buttonVariants({ size: "sm" }), "h-7 text-xs")}>
+                        Generate questions
+                      </Link>
+                    </>
+                  ) : null}
+                </div>
               </div>
 
               {doc.processingStatus !== "READY" ? (

@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { TrainerNav } from "@/components/trainer-nav";
 import { DocumentUpload } from "@/app/(trainer)/trainer/documents/document-upload";
 import { DocumentList, type DocumentSummary } from "@/app/(trainer)/trainer/documents/document-list";
 
@@ -26,7 +27,7 @@ export default async function TrainerDocumentsPage() {
   }));
 
   return (
-    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"} nav={<TrainerNav />}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Documents</h1>

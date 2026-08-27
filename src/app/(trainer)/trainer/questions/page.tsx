@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { TrainerNav } from "@/components/trainer-nav";
 import { QuestionReviewCard, type ReviewQuestion } from "@/app/(trainer)/trainer/questions/question-review-card";
 
 export default async function TrainerQuestionsPage({
@@ -36,7 +37,7 @@ export default async function TrainerQuestionsPage({
   }));
 
   return (
-    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+     <AppShell nav={<TrainerNav />} roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Review queue</h1>

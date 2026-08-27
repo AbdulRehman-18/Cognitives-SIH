@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { TrainerNav } from "@/components/trainer-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { GenerateMcqForm } from "@/app/(trainer)/trainer/assessments/generate-form";
 import { AssessmentsList, type AssessmentSummary } from "@/app/(trainer)/trainer/assessments/assessments-list";
@@ -41,7 +42,7 @@ export default async function TrainerAssessmentsPage() {
   });
 
   return (
-    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+     <AppShell nav={<TrainerNav />} roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Assessments</h1>

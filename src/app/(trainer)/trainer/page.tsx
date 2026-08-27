@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AppShell } from "@/components/app-shell";
+import { TrainerNav } from "@/components/trainer-nav";
 
 export default async function TrainerDashboardPage() {
   const session = await requireRole("TRAINER");
@@ -33,7 +34,7 @@ export default async function TrainerDashboardPage() {
     .slice(0, 5);
 
   return (
-    <AppShell roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+     <AppShell nav={<TrainerNav />} roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
       <div className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="text-xl font-semibold">Trainer overview</h1>
         <div className="mt-6 grid grid-cols-4 gap-4">
