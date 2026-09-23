@@ -21,8 +21,13 @@ export interface PathItemView {
   courseTitle: string;
   source: "IGOT" | "NSSTA";
   externalUrl: string | null;
+  competencyId: string;
   competencyName: string;
   severity: string;
+  currentLevel: number;
+  requiredLevel: number;
+  /** Names of this item's prerequisite competencies that are also on the path. */
+  after: string[];
   hours: number;
   order: number;
   weekNumber: number;
@@ -52,7 +57,10 @@ const SEVERITY_RANK: Record<string, number> = {
  * there are no recommendations to schedule yet. A cyclic prerequisite graph
  * propagates the engine's throw — never silently truncated.
  */
-export async function loadLearningPath(userId: string): Promise<LearningPathData | null> {
+export async function loadLearningPath(
+  userId: string,
+  maxWeeklyHours: number = DEFAULT_MAX_WEEKLY_HOURS,
+): Promise<LearningPathData | null> {
   // One top recommendation per gap — the engine schedules competencies, so
   // duplicates per competency would corrupt the topological sort.
   const recommendations = await db.recommendation.findMany({
@@ -89,10 +97,11 @@ export async function loadLearningPath(userId: string): Promise<LearningPathData
       hours: Number(r.course.durationHours),
     })),
     prerequisiteEdges,
-    { maxWeeklyHours: DEFAULT_MAX_WEEKLY_HOURS },
+    { maxWeeklyHours },
   );
 
   const byItemId = new Map(scheduled.map((s) => [s.itemId, s]));
+  const nameByCompetency = new Map(selected.map((r) => [r.gap.competencyId, r.gap.competency.name]));
 
   const itemViews: PathItemView[] = selected.map((r) => {
     const slot = byItemId.get(r.id)!;
@@ -103,8 +112,14 @@ export async function loadLearningPath(userId: string): Promise<LearningPathData
       courseTitle: r.course.title,
       source: r.course.source,
       externalUrl: r.course.externalUrl,
+      competencyId: r.gap.competencyId,
       competencyName: r.gap.competency.name,
       severity: r.gap.severity,
+      currentLevel: r.gap.currentLevel,
+      requiredLevel: r.gap.requiredLevel,
+      after: prerequisiteEdges
+        .filter((e) => e.competencyId === r.gap.competencyId && nameByCompetency.has(e.prerequisiteId))
+        .map((e) => nameByCompetency.get(e.prerequisiteId)!),
       hours: Number(r.course.durationHours),
       order: slot.order,
       weekNumber: slot.weekNumber,
@@ -118,7 +133,7 @@ export async function loadLearningPath(userId: string): Promise<LearningPathData
   await persistPath(userId, itemViews);
 
   const weeks = groupByWeek(itemViews);
-  return { weeks, maxWeeklyHours: DEFAULT_MAX_WEEKLY_HOURS };
+  return { weeks, maxWeeklyHours };
 }
 
 async function persistPath(userId: string, items: PathItemView[]): Promise<void> {

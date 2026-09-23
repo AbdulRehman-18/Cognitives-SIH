@@ -212,3 +212,11 @@
 
   ::selection { background: var(--color-accent-20); }
 }
+
+/* Learning path ruler */
+@layer utilities {
+  @keyframes path-seg { from { transform: scaleX(0); opacity: 0; } to { transform: none; opacity: 1; } }
+  .path-seg { transform-origin: left center; animation: path-seg 520ms var(--ease-entrance) both; animation-delay: var(--d, 0ms); }
+  @keyframes path-here { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .path-here { animation: path-here 500ms var(--ease-entrance) 400ms both; }
+}

@@ -1,51 +1,49 @@
-import { PathTimeline } from "@/components/caliper/path-timeline";
 import { buildLearningPath } from "@/lib/engines/learning-path";
+import { LearningPathView, type PathViewItem } from "@/components/learner/learning-path-view";
 
-// Dev fixture — PathTimeline rendered from REAL engine output (Kahn's order +
-// bin-packing over typed fixtures), mirroring /dev/gaps.
+// Dev fixture — the learning path rendered from REAL engine output (Kahn's
+// order + bin-packing over typed fixtures), with a mix of progress states.
+
+const BUDGET = 5;
 
 const ITEMS = [
-  { itemId: "r1", competencyId: "Sampling", priorityRank: 0, hours: 30 }, // NSSTA 5-day programme
+  { itemId: "r1", competencyId: "Sampling Methods", priorityRank: 0, hours: 12 },
   { itemId: "r2", competencyId: "Survey Design", priorityRank: 0, hours: 6 },
   { itemId: "r3", competencyId: "Data Visualization", priorityRank: 1, hours: 3 },
-  { itemId: "r4", competencyId: "Python", priorityRank: 1, hours: 30 },
+  { itemId: "r4", competencyId: "Python for Data", priorityRank: 1, hours: 8 },
+  { itemId: "r5", competencyId: "Data Protection (DPDPA)", priorityRank: 2, hours: 2 },
 ];
 
 const EDGES = [
-  { competencyId: "Sampling", prerequisiteId: "Survey Design" },
-  { competencyId: "Data Visualization", prerequisiteId: "Python" },
+  { competencyId: "Sampling Methods", prerequisiteId: "Survey Design" },
+  { competencyId: "Data Visualization", prerequisiteId: "Python for Data" },
 ];
 
-export default function DevPathPage() {
-  const scheduled = buildLearningPath(ITEMS, EDGES);
-  const meta = new Map([
-    ["r1", { title: "Sampling Techniques & Large Scale Sample Surveys", source: "NSSTA · 30h" }],
-    ["r2", { title: "Nuances of Data Collection", source: "NSSTA · 6h" }],
-    ["r3", { title: "Data Analytics & Visualization", source: "NSSTA · 3h" }],
-    ["r4", { title: "Foundation Course on Machine Learning using Python", source: "NSSTA · 30h" }],
-  ]);
+const META: Record<string, Omit<PathViewItem, "id" | "weekNumber" | "order" | "hours" | "competencyName" | "after">> = {
+  r1: { title: "Sampling Techniques & Large Scale Sample Surveys", source: "NSSTA", href: null, severity: "CRITICAL", currentLevel: 2, requiredLevel: 4, status: "untracked", pct: 0 },
+  r2: { title: "Nuances of Data Collection and Questionnaire Design", source: "IGOT", href: "https://igotkarmayogi.gov.in", severity: "CRITICAL", currentLevel: 1, requiredLevel: 4, status: "done", pct: 100 },
+  r3: { title: "Data Analytics & Visualization", source: "IGOT", href: "https://igotkarmayogi.gov.in", severity: "HIGH", currentLevel: 2, requiredLevel: 3, status: "todo", pct: 0 },
+  r4: { title: "Foundation Course on Python for Official Statistics", source: "IGOT", href: "https://igotkarmayogi.gov.in", severity: "HIGH", currentLevel: 2, requiredLevel: 4, status: "active", pct: 45 },
+  r5: { title: "Digital Personal Data Protection Act, 2023 — Essentials", source: "IGOT", href: "https://igotkarmayogi.gov.in", severity: "MEDIUM", currentLevel: 3, requiredLevel: 4, status: "todo", pct: 0 },
+};
 
-  const weeks = [...new Set(scheduled.map((s) => s.weekNumber))].sort((a, b) => a - b).map((weekNumber) => {
-    const weekItems = scheduled.filter((s) => s.weekNumber === weekNumber);
-    return {
-      weekNumber,
-      hours: weekItems.reduce((sum, s) => sum + (ITEMS.find((i) => i.itemId === s.itemId)?.hours ?? 0), 0),
-      items: weekItems.map((s) => ({
-        id: s.itemId,
-        title: meta.get(s.itemId)?.title ?? s.itemId,
-        meta: meta.get(s.itemId)?.source,
-        rationale: `Scheduled after its prerequisites (order ${s.order}).`,
-      })),
-    };
-  });
+export default function DevPathPage() {
+  const scheduled = buildLearningPath(ITEMS, EDGES, { maxWeeklyHours: BUDGET });
+  const items: PathViewItem[] = scheduled.map((s) => ({
+    ...META[s.itemId],
+    id: s.itemId,
+    order: s.order,
+    weekNumber: s.weekNumber,
+    hours: ITEMS.find((i) => i.itemId === s.itemId)!.hours,
+    competencyName: s.competencyId,
+    after: EDGES.filter((e) => e.competencyId === s.competencyId).map((e) => e.prerequisiteId),
+    action: META[s.itemId].status === "active" ? <span className="text-[12px] text-muted-foreground">[iGOT progress control]</span> : <span className="rounded-[8px] bg-[color:var(--color-accent)] px-[12px] py-[6px] text-[13px] font-medium text-white">Enrol on iGOT</span>,
+  }));
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="text-lg font-semibold text-foreground">dev / path</h1>
-      <p className="mt-1 mb-8 text-sm text-muted-foreground">
-        Engine-computed schedule: Survey Design → Sampling (prereq chain), Python → Data Visualization.
-      </p>
-      <PathTimeline weeks={weeks} maxWeeklyHours={5} />
+    <div className="page-shell flex max-w-[1080px] flex-col gap-[32px] py-[36px]">
+      <h1 className="text-[28px] font-[650] tracking-[-0.025em]">dev / path</h1>
+      <LearningPathView items={items} budget={BUDGET} />
     </div>
   );
 }

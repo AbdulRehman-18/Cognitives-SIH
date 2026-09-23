@@ -9,7 +9,43 @@ import { AiError, withAiErrorHandling, classifyAiError } from "@/lib/ai/errors";
 // Same generateObject contract as openrouter.ts: Zod schema in, validated
 // object out, never free-text parsing. Structured output uses Gemini's
 // native responseSchema/responseMimeType JSON mode.
-const GENERATION_MODEL = "gemini-3.5-flash";
+//
+// Failover: the direct API has no OpenRouter-style `models` array, so we walk
+// GENERATION_MODELS ourselves when a model is overloaded (503), rate-limited
+// (429) or retired (404). Popular flash models 503 under demand spikes.
+const GENERATION_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+];
+
+function isFailoverError(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status;
+  if (status === 404 || status === 429 || status === 500 || status === 503) return true;
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return (
+    message.includes("unavailable") ||
+    message.includes("high demand") ||
+    message.includes("overloaded") ||
+    message.includes("resource_exhausted") ||
+    message.includes("not found")
+  );
+}
+
+async function withModelFailover<T>(call: (model: string) => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (const model of GENERATION_MODELS) {
+    try {
+      return await call(model);
+    } catch (error) {
+      lastError = error;
+      if (!isFailoverError(error)) throw error;
+      console.warn(`[gemini] ${model} unavailable, failing over:`, error instanceof Error ? error.message.slice(0, 160) : error);
+    }
+  }
+  throw lastError;
+}
 
 let client: GoogleGenAI | null = null;
 
@@ -43,16 +79,18 @@ export const geminiProvider: AiProvider = {
         ? `${opts.system}\n\n${opts.prompt}`
         : opts.prompt;
 
-      const response = await ai.models.generateContent({
-        model: GENERATION_MODEL,
-        contents,
-        config: {
-          responseMimeType: "application/json",
-          maxOutputTokens: opts.maxOutputTokens,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          responseJsonSchema: jsonSchema as any,
-        },
-      });
+      const response = await withModelFailover((model) =>
+        ai.models.generateContent({
+          model,
+          contents,
+          config: {
+            responseMimeType: "application/json",
+            maxOutputTokens: opts.maxOutputTokens,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            responseJsonSchema: jsonSchema as any,
+          },
+        }),
+      );
 
       const text = response.text;
       if (!text) {
@@ -84,22 +122,38 @@ export const geminiProvider: AiProvider = {
   },
 
   async *streamText(opts: StreamTextOptions): AsyncIterable<string> {
-    const ai = getClient();
+    let yielded = false;
     try {
-      const stream = await ai.models.generateContentStream({
-        model: GENERATION_MODEL,
-        contents: opts.messages.map((message) => ({
-          role: message.role === "assistant" ? ("model" as const) : ("user" as const),
-          parts: [{ text: message.content }],
-        })),
-        config: {
-          systemInstruction: opts.system,
-        },
-      });
-      for await (const chunk of stream) {
-        const delta = chunk.text;
-        if (delta) yield delta;
+      const ai = getClient();
+      const contents = opts.messages.map((message) => ({
+        role: message.role === "assistant" ? ("model" as const) : ("user" as const),
+        parts: [{ text: message.content }],
+      }));
+      let lastError: unknown;
+      for (const model of GENERATION_MODELS) {
+        try {
+          const stream = await ai.models.generateContentStream({
+            model,
+            contents,
+            config: { systemInstruction: opts.system },
+          });
+          for await (const chunk of stream) {
+            const delta = chunk.text;
+            if (delta) {
+              yielded = true;
+              yield delta;
+            }
+          }
+          return;
+        } catch (error) {
+          lastError = error;
+          // Once text reached the caller we can't restart on another model
+          // without duplicating output — surface the failure instead.
+          if (yielded || !isFailoverError(error)) throw error;
+          console.warn(`[gemini] ${model} unavailable, failing over:`, error instanceof Error ? error.message.slice(0, 160) : error);
+        }
       }
+      throw lastError;
     } catch (error) {
       throw classifyAiError(error);
     }

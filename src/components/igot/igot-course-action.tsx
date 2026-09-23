@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface IgotProgressState {
@@ -29,10 +30,10 @@ export function IgotCourseAction({ courseId, source, synced, progress, mockMode,
   const [message, setMessage] = useState<string | null>(null);
 
   if (source === "NSSTA") {
-    return <span className={cn("text-[11px] text-muted-foreground", className)}>NSSTA programme · nomination via your division</span>;
+    return <span className={cn("text-[12px] text-muted-foreground", className)}>NSSTA programme · nomination through your division</span>;
   }
   if (!synced) {
-    return <span className={cn("text-[11px] text-muted-foreground", className)}>Awaiting iGOT catalog sync</span>;
+    return <span className={cn("text-[12px] text-muted-foreground", className)}>Enrolment opens once the iGOT catalogue is synced</span>;
   }
 
   async function call(path: string, body?: object) {
@@ -62,7 +63,7 @@ export function IgotCourseAction({ courseId, source, synced, progress, mockMode,
 
   const working = busy || pending;
   const buttonClass =
-    "rounded-full px-[12px] py-[6px] text-[11px] font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed";
+    "rounded-[8px] px-[12px] py-[6px] text-[13px] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]/60 disabled:opacity-50 disabled:cursor-not-allowed";
 
   return (
     <div className={cn("flex flex-col gap-[8px]", className)}>
@@ -71,32 +72,32 @@ export function IgotCourseAction({ courseId, source, synced, progress, mockMode,
           type="button"
           disabled={working}
           onClick={() => call("/api/igot/enrol", { courseId })}
-          className={cn(buttonClass, "w-fit bg-[color:var(--color-accent)] text-white hover:brightness-105")}
+          className={cn(buttonClass, "w-fit bg-[color:var(--color-accent)] text-white shadow-[var(--shadow-cta)] hover:brightness-110")}
         >
           {working ? "Enrolling…" : "Enrol on iGOT"}
         </button>
       ) : progress.status === "COMPLETED" ? (
-        <span className="inline-flex w-fit items-center gap-[6px] rounded-full border border-[#12B76A]/25 bg-[#12B76A]/10 px-[10px] py-[5px] text-[11px] font-semibold text-[#0E7A4B]">
-          ✓ Completed on iGOT · counted as evidence
+        <span className="inline-flex w-fit items-center gap-[6px] rounded-[8px] bg-[color:var(--color-grow-bg)] px-[10px] py-[5px] text-[12px] font-medium text-[color:var(--color-grow)]">
+          <Check className="size-[13px]" aria-hidden /> Completed on iGOT · counted as evidence
         </span>
       ) : (
         <>
           <div className="flex items-center gap-[10px]">
-            <div className="h-[6px] flex-1 min-w-[80px] overflow-hidden rounded-full bg-[color:var(--color-border-resting)]" role="progressbar" aria-valuenow={progress.progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="iGOT course progress">
+            <div className="h-[4px] flex-1 min-w-[120px] max-w-[240px] overflow-hidden rounded-full bg-[color:var(--color-border-resting)]" role="progressbar" aria-valuenow={progress.progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="iGOT course progress">
               <div className="h-full rounded-full bg-[color:var(--color-accent)] transition-[width]" style={{ width: `${progress.progressPct}%` }} />
             </div>
-            <span className="text-[11px] tabular-mono text-muted-foreground">{progress.progressPct}%</span>
+            <span className="num text-[12px] text-muted-foreground">{progress.progressPct}%</span>
           </div>
           <div className="flex flex-wrap gap-[6px]">
-            <button type="button" disabled={working} onClick={() => call("/api/igot/progress")} className={cn(buttonClass, "border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] text-foreground hover:bg-[color:var(--color-canvas)]")}>
+            <button type="button" disabled={working} onClick={() => call("/api/igot/progress")} className={cn(buttonClass, "border border-[color:var(--color-border-hover)] text-foreground hover:bg-[color:var(--color-canvas)]")}>
               {working ? "Syncing…" : "Sync progress"}
             </button>
             {mockMode && (
               <>
-                <button type="button" disabled={working} onClick={() => call("/api/igot/simulate", { courseId, progressPct: Math.min(100, progress.progressPct + 50) })} className={cn(buttonClass, "border border-dashed border-[color:var(--color-border-resting)] text-muted-foreground hover:text-foreground")} title="Mock iGOT only — advances simulated progress, then runs the real sync">
+                <button type="button" disabled={working} onClick={() => call("/api/igot/simulate", { courseId, progressPct: Math.min(100, progress.progressPct + 50) })} className={cn(buttonClass, "border border-dashed border-[color:var(--color-border-hover)] text-muted-foreground hover:text-foreground")} title="Mock iGOT only — advances simulated progress, then runs the real sync">
                   Simulate +50%
                 </button>
-                <button type="button" disabled={working} onClick={() => call("/api/igot/simulate", { courseId, progressPct: 100 })} className={cn(buttonClass, "border border-dashed border-[color:var(--color-border-resting)] text-muted-foreground hover:text-foreground")} title="Mock iGOT only — marks the simulated enrolment complete, then runs the real sync">
+                <button type="button" disabled={working} onClick={() => call("/api/igot/simulate", { courseId, progressPct: 100 })} className={cn(buttonClass, "border border-dashed border-[color:var(--color-border-hover)] text-muted-foreground hover:text-foreground")} title="Mock iGOT only — marks the simulated enrolment complete, then runs the real sync">
                   Simulate completion
                 </button>
               </>
@@ -104,7 +105,7 @@ export function IgotCourseAction({ courseId, source, synced, progress, mockMode,
           </div>
         </>
       )}
-      {message && <p className="text-[11px] text-muted-foreground" role="status">{message}</p>}
+      {message && <p className="text-[12px] text-muted-foreground" role="status">{message}</p>}
     </div>
   );
 }
