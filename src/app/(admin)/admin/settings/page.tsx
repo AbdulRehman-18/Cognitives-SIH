@@ -1,6 +1,4 @@
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
 
@@ -13,7 +11,7 @@ export default async function AdminSettingsPage() {
   const [deptCount, roleCount] = await Promise.all([db.department.count(), db.role.count()]);
 
   return (
-    <AppShell roleLabel="Admin" userName="Admin" nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[18px]">
         <div className="max-w-[720px]">
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Admin settings</h1>
@@ -76,7 +74,7 @@ export default async function AdminSettingsPage() {
 
             <section id="data" className="rounded-[16px] border border-[#FECACA]/30 bg-[#FFF1F0] p-[18px]">
               <h2 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#C9190B]">Data</h2>
-              <h3 className="text-[16px] font-[650] mt-[4px] text-[#141210]">Retention</h3>
+              <h3 className="text-[16px] font-[650] mt-[4px] text-foreground">Retention</h3>
               <p className="text-[13px] leading-[1.6] text-[#6B6560] mt-[6px]">Skill gaps are recomputed on each diagnostic. Exports are aggregate CSVs — no PII.</p>
               <div className="mt-[12px] flex flex-wrap gap-[8px]">
                 <button className="rounded-full bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] px-[14px] py-[8px] text-[13px] font-semibold">Export workforce CSV</button>
@@ -86,6 +84,6 @@ export default async function AdminSettingsPage() {
           </div>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

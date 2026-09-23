@@ -14,6 +14,8 @@ const TABS = [
 
 export function LearnerNav() {
   const pathname = usePathname();
+  // Assessments run in a focused, nav-free mode.
+  if (pathname === "/assessment" || pathname?.startsWith("/assessment/")) return null;
   return (
     <nav className="flex items-center gap-[4px] border-b border-[color:var(--color-border-resting)] px-[16px] lg:px-[32px] overflow-x-auto" aria-label="Learner navigation">
       {TABS.map((tab) => {

@@ -1,12 +1,11 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 import Link from "next/link";
 
 function SeverityDonut({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  let acc = 0;
+  // Cumulative offset of each slice, computed up front so render stays pure.
+  const offsets = data.map((_, i) => data.slice(0, i).reduce((s, d) => s + d.value, 0));
   const size = 128, r = 46, sw = 14, cx = size / 2, cy = size / 2;
   return (
     <div className="flex items-center gap-[20px]">
@@ -14,17 +13,16 @@ function SeverityDonut({ data }: { data: { label: string; value: number; color: 
         {data.map((d, i) => {
           if (!d.value) return null;
           const frac = d.value / total;
-          const start = (acc / total) * 360 - 90;
+          const start = (offsets[i] / total) * 360 - 90;
           const sweep = frac * 360;
-          acc += d.value;
           const large = sweep > 180 ? 1 : 0;
           const a0 = (start * Math.PI) / 180, a1 = ((start + sweep) * Math.PI) / 180;
           const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
           const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
           return <path key={i} d={`M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`} fill="none" stroke={d.color} strokeWidth={sw} strokeLinecap="round" />;
         })}
-        <text x={cx} y={cy - 2} textAnchor="middle" fontSize={20} fontWeight={700} fill="#141210" style={{ fontFamily: "var(--font-mono)" }}>{total}</text>
-        <text x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fontWeight={600} letterSpacing={0.08} fill="#6B7280">GAPS</text>
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize={20} fontWeight={700} fill="currentColor" className="text-foreground" style={{ fontFamily: "var(--font-mono)" }}>{total}</text>
+        <text x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fontWeight={600} letterSpacing={0.08} fill="currentColor" className="text-muted-foreground">GAPS</text>
       </svg>
       <div className="flex-1">
         {data.map((d) => (
@@ -64,7 +62,7 @@ function DeptColumns({ items }: { items: { name: string; gaps: number; crit: num
 }
 
 export default async function AdminOverviewPage() {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const [departments, gapsBySeverity, criticalGaps, learnerCount, trainerCount, totalGaps, docCount, assessmentCount] = await Promise.all([
     db.department.findMany({ select: { id: true, name: true } }),
     db.skillGap.groupBy({ by: ["severity"], _count: true }),
@@ -96,7 +94,7 @@ export default async function AdminOverviewPage() {
   const sortedDepts = [...deptStats].sort((a, b) => b.gapCount - a.gapCount);
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[1180px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[24px]">
         {/* Header — no kicker, heading carries weight */}
         <div className="max-w-[720px]">
@@ -162,7 +160,7 @@ export default async function AdminOverviewPage() {
             <section className="rounded-[16px] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] p-[20px]">
               <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase opacity-70">How to use this page</h2>
               <p className="text-[14px] leading-[1.6] mt-[8px]">This is aggregate intelligence — no personal scores. Use the columns to spot which division needs an NSSTA batch, then drill into department → role → skill.</p>
-              <Link href="/admin/shortages" className="mt-[14px] inline-flex rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold">See shortages →</Link>
+              <Link href="/admin/shortages" className="mt-[14px] inline-flex rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[14px] py-[8px] text-[13px] font-semibold">See shortages →</Link>
             </section>
           </div>
         </div>
@@ -187,6 +185,6 @@ export default async function AdminOverviewPage() {
           )}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }

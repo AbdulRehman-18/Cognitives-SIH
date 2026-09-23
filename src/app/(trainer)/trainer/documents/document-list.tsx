@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/lib/format";
 import * as React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -123,7 +124,7 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentS
                     {friendlyType(doc.type)} document
                   </span>
                   <span className="tabular-mono text-xs text-muted-foreground">
-                    {new Date(doc.createdAt).toLocaleString()}
+                    {formatDateTime(doc.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

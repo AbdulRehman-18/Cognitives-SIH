@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@/lib/format";
 import * as React from "react";
 import {
   Sheet,
@@ -120,7 +121,7 @@ normalized by weights actually present`}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {row.sourceLabel} ·{" "}
-                        {new Date(row.createdAt).toLocaleDateString()}
+                        {formatDate(row.createdAt)}
                       </span>
                     </div>
                     <div className="tabular-mono text-right text-xs text-muted-foreground">

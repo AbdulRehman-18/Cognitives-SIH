@@ -1,6 +1,5 @@
+import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
 
@@ -19,7 +18,7 @@ export default async function AdminProfilePage() {
   const critical = await db.skillGap.count({ where: { severity: "CRITICAL" } });
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[16px]">
         <div>
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Admin profile</h1>
@@ -27,18 +26,18 @@ export default async function AdminProfilePage() {
         </div>
 
         <div className="rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] p-[22px] flex flex-col md:flex-row gap-[18px]">
-          <div className="size-[68px] rounded-[16px] bg-[color:var(--color-surface-1)] text-[#141210] grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "A").slice(0, 1)}</div>
+          <div className="size-[68px] rounded-[16px] bg-[color:var(--color-surface-1)] text-foreground grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "A").slice(0, 1)}</div>
           <div className="flex-1 min-w-0">
             <h2 className="text-[22px] font-[650] leading-none">{session.user.name ?? "Admin"}</h2>
-            <p className="text-[13px] opacity-70 mt-[6px] truncate">{user?.email} · ADMIN · MoSPI · since {user ? new Date(user.createdAt).toLocaleDateString() : "—"}</p>
+            <p className="text-[13px] opacity-70 mt-[6px] truncate">{user?.email} · ADMIN · MoSPI · since {user ? formatDate(user.createdAt) : "—"}</p>
             <div className="mt-[12px] flex flex-wrap gap-[8px]">
-              <span className="rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[12px] py-[6px] text-[11px] font-semibold">{deptCount} divisions</span>
+              <span className="rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[12px] py-[6px] text-[11px] font-semibold">{deptCount} divisions</span>
               <span className="rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/15 px-[12px] py-[6px] text-[11px] font-medium">{roleCount} roles</span>
               <span className="rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/15 px-[12px] py-[6px] text-[11px] tabular-mono">{learnerCount} learners · {trainerCount} trainers</span>
             </div>
           </div>
           <div className="flex flex-row md:flex-col gap-[8px] shrink-0">
-            <Link href="/admin/settings" className="rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[16px] py-[8px] text-[13px] font-semibold text-center">Settings</Link>
+            <Link href="/admin/settings" className="rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[16px] py-[8px] text-[13px] font-semibold text-center">Settings</Link>
             <Link href="/admin/overview" className="rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/20 text-white px-[16px] py-[8px] text-[13px] font-medium text-center">Intelligence →</Link>
           </div>
         </div>
@@ -86,6 +85,6 @@ export default async function AdminProfilePage() {
           <Link href="/admin/roles" className="ml-auto rounded-full bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] px-[14px] py-[7px] text-[12px] font-semibold">Manage roles →</Link>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

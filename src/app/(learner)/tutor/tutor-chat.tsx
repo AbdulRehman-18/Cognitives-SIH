@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Markdown } from "@/components/markdown";
 import { SourceChunkCard } from "@/components/caliper/source-chunk-card";
 import { AiErrorState, type AiErrorKind } from "@/components/caliper/ai-error-state";
 import { Button } from "@/components/ui/button";
@@ -25,10 +27,23 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
   const listRef = useRef<HTMLDivElement>(null);
   const pendingRef = useRef("");
   const rafRef = useRef<number | null>(null);
+  const router = useRouter();
+  const openQuiz = (topic: string) => router.push(`/tutor/quiz?topic=${encodeURIComponent(topic)}`);
+  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
+
+  // Updaters must stay pure (Strict Mode runs them twice), so the last
+  // assistant message is replaced, never mutated in place.
+  function patchLastAssistant(patch: (m: ChatMessage) => Partial<ChatMessage>) {
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role !== "assistant") return prev;
+      return [...prev.slice(0, -1), { ...last, ...patch(last) }];
+    });
+  }
   function flushNow() {
     if (!pendingRef.current) return;
     const chunk = pendingRef.current; pendingRef.current = "";
-    setMessages((prev) => { const c = [...prev]; const last = c[c.length-1]; if (last?.role==="assistant") last.content += chunk; return [...c]; });
+    patchLastAssistant((m) => ({ content: m.content + chunk }));
   }
   function scheduleFlush() {
     if (rafRef.current != null) return;
@@ -36,6 +51,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
   }
 
   async function send(content: string) {
+    if (mode === "quiz") { openQuiz(content); return; }
     const next = [...messages, { role: "user", content } as ChatMessage];
     setMessages(next); setInput(""); setStreaming(true); setErrorKind(null);
     try {
@@ -43,7 +59,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
       if (!res.ok) { const body = await res.json().catch(() => null); setErrorKind((body?.kind ?? "NETWORK") as AiErrorKind); setStreaming(false); return; }
       const reader = res.body?.getReader(); if (!reader) throw new Error("No body");
       const decoder = new TextDecoder();
-      let buffer = ""; let headerParsed = false; let citations: Citation[] = []; let refused = false;
+      let buffer = ""; let headerParsed = false;
       setMessages((prev) => [...prev, { role: "assistant", content: "", citations: [], refused: false }]);
       while (true) {
         const { done, value } = await reader.read(); if (done) break;
@@ -51,14 +67,16 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
         if (!headerParsed) {
           const sep = buffer.indexOf("\n\n");
           if (sep === -1) continue;
-          try { const h = JSON.parse(buffer.slice(0, sep)) as { refused: boolean; citations: Citation[] }; refused = h.refused; citations = h.citations; } catch {}
+          let header: { refused: boolean; citations: Citation[] } = { refused: false, citations: [] };
+          try { header = JSON.parse(buffer.slice(0, sep)); } catch {}
           buffer = buffer.slice(sep + 2); headerParsed = true;
-          setMessages((prev) => { const c = [...prev]; const last = c[c.length - 1]; if (last?.role === "assistant") { last.citations = citations; last.refused = refused; } return c; });
+          patchLastAssistant(() => ({ citations: header.citations, refused: header.refused }));
         }
         if (headerParsed && buffer) { const text = buffer; buffer = ""; // batch: mutate via ref + flush on rAF
           pendingRef.current += text; scheduleFlush(); }
        }
-       if (buffer) { pendingRef.current += buffer; scheduleFlush(); flushNow(); }
+       if (buffer) pendingRef.current += buffer;
+       flushNow();
     } catch { setErrorKind("NETWORK"); } finally { setStreaming(false); setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50); }
   }
 
@@ -85,26 +103,30 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
         <div ref={listRef} className="flex flex-1 flex-col gap-[14px] overflow-y-auto px-[16px] py-[16px] bg-[color:var(--color-surface-1)]/60">
           {messages.length === 0 && (
             <div className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[16px] shadow-sm">
-              <p className="text-small font-semibold">Start grounded. No guesswork.</p>
-              <p className="text-small text-muted-foreground leading-relaxed mt-[4px]">Ask anything covered in trainer-uploaded material. The tutor retrieves first, answers only from those chunks, and cites every claim. Try one:</p>
+              <div className="flex items-center justify-between">
+                <p className="text-small font-semibold">{mode==="quiz" ? "Quiz — dedicated page" : mode==="guide" ? "Guide me — Socratic" : "Explain — grounded"}</p>
+                {messages.length===0 && <button onClick={()=>setMessages([])} className="text-[11px] tabular-mono text-muted-foreground underline">New chat</button>}
+              </div>
               <div className="mt-[12px] flex flex-wrap gap-[8px]">
-                {STARTERS.map((s) => (
+                {mode!=="quiz" && STARTERS.map((s) => (
                   <button key={s} onClick={() => send(s)} className="rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)] px-[12px] py-[7px] text-[12px] text-left hover:border-[color:var(--color-accent)]/30 hover:bg-[color:var(--color-accent)]/5 text-foreground max-w-full leading-tight">{s}</button>
                 ))}
                 {initialGaps?.slice(0, 2).map((g) => (
-                  <button key={g} onClick={() => send(`Teach me ${g} from the uploaded material — start with fundamentals and keep it calibrated to my gap.`)} className="rounded-full bg-[color:var(--color-accent)] text-white px-[12px] py-[7px] text-[12px] font-medium hover:brightness-105">Teach me: {g} →</button>
+                  <button key={g} onClick={() => mode==="quiz" ? openQuiz(g) : send(`Teach me ${g} from the uploaded material — start with fundamentals and keep it calibrated to my gap.`)} className="rounded-full bg-[color:var(--color-accent)] text-white px-[12px] py-[7px] text-[12px] font-medium hover:brightness-105">Teach me: {g} →</button>
                 ))}
-              </div>
-              <div className="mt-[14px] grid grid-cols-3 gap-[8px] text-center">
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)]/50 py-[10px]"><p className="text-[11px] font-semibold tracking-wide">Explain</p><p className="text-[10px] tabular-mono text-muted-foreground">Steps + check</p></div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)]/50 py-[10px]"><p className="text-[11px] font-semibold tracking-wide">Guide</p><p className="text-[10px] tabular-mono text-muted-foreground">Socratic</p></div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] border border-[color:var(--color-border-resting)]/50 py-[10px]"><p className="text-[11px] font-semibold tracking-wide">Quiz</p><p className="text-[10px] tabular-mono text-muted-foreground">1 MCQ</p></div>
               </div>
             </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={cn("max-w-[88%] rounded-[16px] px-[14px] py-[12px] text-[14px] leading-relaxed shadow-sm", m.role === "user" ? "self-end bg-[color:var(--color-accent)] text-white rounded-br-[6px]" : "self-start bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] rounded-bl-[6px]")}>
-              <p className="whitespace-pre-wrap">{m.content || (streaming && i === messages.length - 1 ? "Calibrating to your gaps…" : "")}</p>
+              {m.role === "assistant" ? (
+                  <div>
+                    <Markdown>{m.content || (streaming && i === messages.length - 1 ? "_Retrieving…_" : "")}</Markdown>
+                    {streaming && i===messages.length-1 && <span className="inline-block w-2 h-4 bg-[color:var(--color-accent)] animate-pulse ml-1 align-middle" />}
+                  </div>
+                ) : (
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              )}
               {m.role === "assistant" && m.citations && m.citations.length > 0 && (
                 <div className="mt-[12px] flex flex-col gap-[8px]">
                   <p className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Cited chunks</p>
@@ -122,7 +144,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           <div className="flex flex-wrap gap-[8px] border-t border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)]/50 px-[12px] py-[10px]">
             <Button variant="outline" size="sm" className="h-7 text-xs rounded-full" onClick={() => send("Give a concrete example from the material.")}>Example</Button>
             <Button variant="outline" size="sm" className="h-7 text-xs rounded-full" onClick={() => send("Summarise the key points with citations.")}>Summarise</Button>
-            <Button variant="outline" size="sm" className="h-7 text-xs rounded-full" onClick={() => { setMode("quiz"); send("Quiz me on this topic — one MCQ from the same material, with citations."); }}>Quiz me</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs rounded-full" onClick={() => openQuiz(messages[messages.length-2]?.content ?? "current topic")}>Quiz me</Button>
             <Button variant="outline" size="sm" className="h-7 text-xs rounded-full" onClick={() => { setMode("guide"); send("Guide me through this — ask me one question at a time, Socratic."); }}>Guide me</Button>
           </div>
         )}
@@ -151,7 +173,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
           <p className="text-small leading-relaxed mt-[6px] opacity-90">Switch to <b>Guide me</b> to be questioned step-by-step, or <b>Quiz me</b> for an instant cited MCQ from the same source chunks. Every answer stays grounded.</p>
           <div className="mt-[12px] flex gap-[8px]">
             <button onClick={() => setMode("guide")} className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-[color:var(--color-accent)] py-[8px] text-[12px] font-semibold">Try Guide me</button>
-            <button onClick={() => setMode("quiz")} className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/15 border border-white/30 text-white py-[8px] text-[12px] font-semibold backdrop-blur">Try Quiz me</button>
+            <a href="/tutor/quiz" className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/15 border border-white/30 text-white py-[8px] text-[12px] font-semibold backdrop-blur grid place-items-center">Try Quiz me</a>
           </div>
         </div>
         <div className="rounded-[16px] border border-dashed border-[color:var(--color-border-resting)] bg-[color:var(--color-canvas)]/50 p-[12px]">

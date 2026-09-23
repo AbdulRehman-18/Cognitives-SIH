@@ -74,7 +74,7 @@ export async function generateDiagnosticQuestions(
       schemaName: "DiagnosticAssessment",
       schemaDescription: "A diagnostic assessment: one or more multiple-choice questions per requested competency.",
     });
-  } catch (e) {
+  } catch {
     // Demo-resilient: ANY provider failure falls back to deterministic bank
     // so the assessment always produces an output probe for presentation.
     const { generateDiagnosticFallback } = await import("./fallback-bank");

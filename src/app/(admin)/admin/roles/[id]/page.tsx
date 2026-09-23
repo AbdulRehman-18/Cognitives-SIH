@@ -2,11 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 
 export default async function AdminRoleDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const { id } = await params;
   const role = await db.role.findUnique({ where: { id }, select: { id: true, name: true, description: true, _count: { select: { users: true } }, roleCompetencies: { select: { requiredLevel: true, weight: true, competency: { select: { name: true, domain: { select: { name: true } } } } } } } });
   if (!role) notFound();
@@ -19,7 +17,7 @@ export default async function AdminRoleDetailPage({ params }: { params: Promise<
   const domains = Array.from(byDomain.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="page-shell py-[28px] flex flex-col gap-[16px] max-w-[960px]">
         <div>
           <Link href="/admin/roles" className="inline-flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[10px] py-[5px] text-[11px] font-medium hover:bg-[color:var(--color-surface-1)]">← All roles</Link>
@@ -65,6 +63,6 @@ export default async function AdminRoleDetailPage({ params }: { params: Promise<
           ))
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -2,13 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 
 const ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 } as const;
 
 export default async function AdminDepartmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const { id } = await params;
 
   const dept = await db.department.findUnique({
@@ -74,7 +72,7 @@ export default async function AdminDepartmentDetailPage({ params }: { params: Pr
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[980px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[20px]">
         <div>
           <Link href="/admin/departments" className="inline-flex items-center gap-[6px] rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[6px] text-[12px] font-medium hover:bg-[color:var(--color-surface-1)] transition">
@@ -173,6 +171,6 @@ export default async function AdminDepartmentDetailPage({ params }: { params: Pr
           <p className="text-[11px] tabular-mono text-muted-foreground text-center">{admins.length} admin{admins.length !== 1 ? "s" : ""} also belong to this division — not counted in learner gaps.</p>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

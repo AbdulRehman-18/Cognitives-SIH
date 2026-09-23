@@ -1,6 +1,4 @@
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { GapDashboard } from "@/components/caliper/gap-dashboard";
 import { loadGapAnalysis } from "@/lib/gap-reasoning/load-gap-analysis";
 import { Breadcrumbs, BreadcrumbItem } from "@astryxdesign/core/Breadcrumbs";
@@ -10,7 +8,7 @@ export default async function GapsPage() {
   const data = await loadGapAnalysis(session.user.id);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="page-shell py-[24px]">
         <div className="mb-[16px]">
           <Breadcrumbs>
@@ -33,6 +31,6 @@ export default async function GapsPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

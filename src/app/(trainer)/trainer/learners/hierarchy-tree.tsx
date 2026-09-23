@@ -6,7 +6,7 @@ type Dept = { name: string; learnerCount: number; learners: Learner[] };
 
 export default function HierarchyTree({ hierarchy, weak }: { hierarchy: Dept[]; weak: { name: string; domain: string; rate: number }[] }) {
   const [openDepts, setOpenDepts] = useState<Set<string>>(() => new Set(hierarchy.slice(0, 2).map((d) => d.name)));
-  const toggle = (n: string) => setOpenDepts((s) => { const ns = new Set(s); ns.has(n) ? ns.delete(n) : ns.add(n); return ns; });
+  const toggle = (n: string) => setOpenDepts((s) => { const ns = new Set(s); if (ns.has(n)) ns.delete(n); else ns.add(n); return ns; });
 
   return (
     <div className="flex flex-col gap-[16px]">

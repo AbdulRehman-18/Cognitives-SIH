@@ -1,6 +1,4 @@
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { TutorChat } from "./tutor-chat";
 import { db } from "@/lib/db/client";
 
@@ -19,7 +17,7 @@ export default async function TutorPage() {
   const firstName = session.user.name?.split(" ")[0] ?? "Officer";
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="page-shell py-[28px] flex flex-col gap-[16px] max-w-[1160px]">
         <div className="flex flex-wrap items-start justify-between gap-[16px]">
           <div>
@@ -51,6 +49,6 @@ export default async function TutorPage() {
 
         <TutorChat initialGaps={gaps.map((g) => g.name)} />
       </div>
-    </AppShell>
+    </>
   );
 }

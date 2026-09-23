@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { PathTimeline, type PathTimelineItem } from "@/components/caliper/path-timeline";
 import { loadLearningPath } from "@/lib/recommendations/load-learning-path";
 import { Breadcrumbs, BreadcrumbItem } from "@astryxdesign/core/Breadcrumbs";
@@ -13,7 +11,7 @@ export default async function PathPage() {
   const totalH = weeks.reduce((s: number, w: { hours: number }) => s + w.hours, 0);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="mx-auto max-w-[880px] px-[20px] lg:px-[24px] py-[24px] flex flex-col gap-[16px]">
         <Breadcrumbs>
           <BreadcrumbItem href="/dashboard">Overview</BreadcrumbItem>
@@ -67,6 +65,6 @@ export default async function PathPage() {
           />
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

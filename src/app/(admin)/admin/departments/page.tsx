@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 
 export default async function AdminDepartmentsPage() {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
 
   const departments = await db.department.findMany({
     select: { id: true, name: true, description: true, _count: { select: { users: true } } },
@@ -49,7 +47,7 @@ export default async function AdminDepartmentsPage() {
   );
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[20px]">
         <div className="max-w-[720px]">
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Departments</h1>
@@ -134,6 +132,6 @@ export default async function AdminDepartmentsPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

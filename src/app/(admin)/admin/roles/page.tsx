@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 
 function Lollipop({ count }: { count: number }) {
   const max = 10;
@@ -16,12 +14,12 @@ function Lollipop({ count }: { count: number }) {
 }
 
 export default async function AdminRolesPage() {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const roles = await db.role.findMany({ select: { id: true, name: true, description: true, _count: { select: { roleCompetencies: true, users: true } } }, orderBy: { name: "asc" } });
   const trainerCount = await db.user.count({ where: { role: "TRAINER" } });
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="page-shell py-[28px] flex flex-col gap-[16px] max-w-[1100px]">
         <div>
           <p className="text-eyebrow text-[11px] tracking-[0.14em] text-[color:var(--color-accent)]">Roles</p>
@@ -59,6 +57,6 @@ export default async function AdminRolesPage() {
           )}
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

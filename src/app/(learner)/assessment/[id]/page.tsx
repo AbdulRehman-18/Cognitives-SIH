@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
 import { AssessmentRunner, type RunnerQuestion } from "@/app/(learner)/assessment/[id]/assessment-runner";
 
 export default async function AssessmentPage({
@@ -58,7 +57,7 @@ export default async function AssessmentPage({
   }));
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
+    <>
       <AssessmentRunner
         assessmentId={assessment.id}
         questions={questions}
@@ -67,6 +66,6 @@ export default async function AssessmentPage({
         // to the partial gap report, which itself picks the one next action.
         resultsHref={context === "onboarding" ? "/onboarding/report" : undefined}
       />
-    </AppShell>
+    </>
   );
 }

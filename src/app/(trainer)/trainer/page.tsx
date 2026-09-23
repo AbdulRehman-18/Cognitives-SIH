@@ -1,8 +1,7 @@
+import { formatDate } from "@/lib/format";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { TrainerNav } from "@/components/trainer-nav";
 
 export default async function TrainerDashboardPage() {
   const session = await requireRole("TRAINER");
@@ -34,7 +33,7 @@ export default async function TrainerDashboardPage() {
     .slice(0, 5);
 
   return (
-     <AppShell nav={<TrainerNav />} roleLabel="Trainer" userName={session.user.name ?? session.user.email ?? "Trainer"}>
+    <>
       <div className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="text-xl font-semibold">Trainer overview</h1>
         <div className="mt-6 grid grid-cols-4 gap-4">
@@ -58,12 +57,12 @@ export default async function TrainerDashboardPage() {
             <h2 className="text-sm font-medium">Recent attempts</h2>
             <ul className="mt-2 text-sm text-muted-foreground">
               {recentAttempts.map((a) => (
-                <li key={a.id}>{a.score != null ? `Score ${Number(a.score).toFixed(1)}` : "In progress"} — {a.submittedAt?.toLocaleDateString() ?? ""}</li>
+                <li key={a.id}>{a.score != null ? `Score ${Number(a.score).toFixed(1)}` : "In progress"} — {(a.submittedAt ? formatDate(a.submittedAt) : "")}</li>
               ))}
             </ul>
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

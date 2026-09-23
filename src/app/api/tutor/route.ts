@@ -7,10 +7,12 @@ import { classifyAiError } from "@/lib/ai/errors";
 import { getAiProvider } from "@/lib/ai/provider";
 import {
   buildTutorSystemPrompt,
+  buildDemoTutorSystemPrompt,
   describeLearnerLevel,
   tutorRefusalMessage,
   TUTOR_RETRIEVAL_K,
   TUTOR_REFUSAL_THRESHOLD,
+  TUTOR_DEMO_MODE,
   type TutorCitation,
 } from "@/lib/tutor/tutor";
 
@@ -75,6 +77,12 @@ export async function POST(request: Request) {
 
   const refused =
     chunks.length === 0 || !chunks.some((chunk) => chunk.similarity >= TUTOR_REFUSAL_THRESHOLD);
+
+  // ── DEMO MODE: bypass document grounding, answer from model knowledge ──
+  // Keeps guardrail against generic off-topic (time, celebrities, etc.)
+  if (TUTOR_DEMO_MODE && refused) {
+    return demoResponse(parsed.data.messages, parsed.data.mode, session.user.id);
+  }
 
   // Deterministic refusal — no model call at all when out of scope.
   if (refused) {
@@ -167,6 +175,38 @@ export async function POST(request: Request) {
       "Cache-Control": "no-store",
     },
   });
+}
+
+async function demoResponse(messages: { role: "user" | "assistant"; content: string }[], mode: "explain" | "guide" | "quiz", userId: string): Promise<Response> {
+  const competencies = await db.userCompetency.findMany({
+    where: { userId },
+    select: { currentScore: true, competency: { select: { name: true } } },
+  });
+  const learnerLevels = competencies.map((uc) => ({
+    name: uc.competency.name,
+    level: uc.currentScore != null ? Math.max(1, Math.min(5, Math.ceil(Number(uc.currentScore) / 20))) : null,
+  }));
+  const system = buildDemoTutorSystemPrompt(describeLearnerLevel(learnerLevels), mode);
+  const provider = getAiProvider();
+  const iterator = provider.streamText({ messages, system })[Symbol.asyncIterator]();
+  let first;
+  try { first = await iterator.next(); } catch (error) {
+    const aiError = classifyAiError(error);
+    return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
+  }
+  const encoder = new TextEncoder();
+  const header = JSON.stringify({ refused: false, citations: [] });
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (t: string) => controller.enqueue(encoder.encode(t));
+      send(`${header}\n\n`);
+      try {
+        if (!first.done && first.value) send(first.value);
+        while (true) { const { done, value } = await iterator.next(); if (done) break; if (value) send(value); }
+      } catch { send("\n\n[The connection to the AI provider was interrupted mid-answer.]"); } finally { controller.close(); }
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
 function refusalResponse(): Response {

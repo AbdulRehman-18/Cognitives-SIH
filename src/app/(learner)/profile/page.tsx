@@ -1,6 +1,5 @@
+import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
 
@@ -49,19 +48,19 @@ export default async function ProfilePage() {
   };
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[18px]">
         {/* Hero — advanced, not just avatar + 3 pills */}
         <div className="rounded-[20px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] overflow-hidden relative">
           <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ background: "radial-gradient(800px 400px at 18% 0%, white, transparent)" }} />
           <div className="relative p-[22px] md:p-[28px] flex flex-col lg:flex-row gap-[20px]">
             <div className="flex gap-[16px] flex-1 min-w-0">
-              <div className="size-[72px] rounded-[16px] bg-[color:var(--color-surface-1)] text-[#141210] grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "O").slice(0, 1)}</div>
+              <div className="size-[72px] rounded-[16px] bg-[color:var(--color-surface-1)] text-foreground grid place-items-center text-[26px] font-[750] shrink-0">{(session.user.name ?? "O").slice(0, 1)}</div>
               <div className="min-w-0 flex-1">
                 <h1 className="text-[24px] md:text-[28px] font-[720] tracking-[-0.02em] leading-none">{session.user.name ?? "Officer"}</h1>
                 <p className="text-[13px] opacity-70 mt-[6px] truncate">{dbUser?.email} · {profile?.jobRole ?? "No role assigned"} {dbUser?.department ? `· ${dbUser.department.name}` : ""}</p>
                 <div className="mt-[12px] flex flex-wrap gap-[8px]">
-                  <span className="rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[12px] py-[6px] text-[11px] font-semibold">{assessed}/{total} measured</span>
+                  <span className="rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[12px] py-[6px] text-[11px] font-semibold">{assessed}/{total} measured</span>
                   <span className="rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/15 px-[12px] py-[6px] text-[11px] font-medium">Avg {avgLevel} / 5</span>
                   <span className={`rounded-full px-[12px] py-[6px] text-[11px] font-bold border ${gapBySeverity.CRITICAL ? "bg-[#F04438] border-[#F04438] text-white" : "bg-[color:var(--color-surface-1)]/10 border-white/20"}`}>{gapBySeverity.CRITICAL ? `${gapBySeverity.CRITICAL} critical` : "No critical"}</span>
                 </div>
@@ -78,7 +77,7 @@ export default async function ProfilePage() {
                 </div>
               </div>
               <div className="flex gap-[8px]">
-                <Link href="/settings" className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
+                <Link href="/settings" className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
                 <Link href="/gaps" className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/20 text-white px-[14px] py-[8px] text-[13px] font-medium text-center">View gaps</Link>
               </div>
             </div>
@@ -97,7 +96,7 @@ export default async function ProfilePage() {
                   { k: "Job role", v: profile?.jobRole ?? "Pending" },
                   { k: "Experience", v: profile?.yearsExperience ? `${profile.yearsExperience} years` : "—" },
                   { k: "Education", v: profile?.education ?? "—" },
-                  { k: "Member since", v: profile ? new Date(profile.createdAt).toLocaleDateString() : "—" },
+                  { k: "Member since", v: profile ? formatDate(profile.createdAt) : "—" },
                 ].map((f) => (
                   <div key={f.k} className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
                     <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">{f.k}</p>
@@ -140,7 +139,7 @@ export default async function ProfilePage() {
                       <div className="flex-1 min-w-0 rounded-[12px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[10px] flex items-center gap-[10px]">
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-medium truncate">Diagnostic · {q.assessment.competencies.length} competencies</p>
-                          <p className="text-[11px] tabular-mono text-muted-foreground">{new Date(q.startedAt).toLocaleDateString()} · {q.submittedAt ? `Score ${Number(q.score ?? 0).toFixed(0)}/100` : "In progress"}</p>
+                          <p className="text-[11px] tabular-mono text-muted-foreground">{formatDate(q.startedAt)} · {q.submittedAt ? `Score ${Number(q.score ?? 0).toFixed(0)}/100` : "In progress"}</p>
                         </div>
                         <span className={`shrink-0 rounded-full px-[8px] py-[3px] text-[11px] font-semibold border ${q.submittedAt ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`}>{q.submittedAt ? "Completed" : "Ongoing"}</span>
                       </div>
@@ -174,6 +173,6 @@ export default async function ProfilePage() {
           </div>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

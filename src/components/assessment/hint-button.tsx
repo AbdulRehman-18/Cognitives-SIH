@@ -59,7 +59,7 @@ export function HintButton({ questionId, attemptId, onHintUsed }: { questionId: 
       {showHint && (
         <div className="relative overflow-hidden rounded-[14px] border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50/60 p-4 shadow-sm animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white border border-amber-200 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-amber-700 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-1)] border border-amber-200 px-2.5 py-1 text-[11px] font-semibold tracking-wide text-amber-700 shadow-sm">
               <Lightbulb className="size-3" /> Hint {tier} of 4
             </span>
             <span className="flex gap-1">

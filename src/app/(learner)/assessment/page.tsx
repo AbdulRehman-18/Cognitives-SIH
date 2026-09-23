@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -12,7 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
  * never appear here (PRD §4.7 / Phase 5 "nothing publishes unreviewed").
  */
 export default async function AvailableAssessmentsPage() {
-  const session = await requireRole("LEARNER");
+  await requireRole("LEARNER");
 
   const assessments = await db.assessment.findMany({
     where: { type: "STANDARD", status: "PUBLISHED" },
@@ -25,7 +24,7 @@ export default async function AvailableAssessmentsPage() {
   const withApprovedQuestions = assessments.filter((a) => a.questions.length > 0);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"}>
+    <>
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-10">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Available assessments</h1>
@@ -70,6 +69,6 @@ export default async function AvailableAssessmentsPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -104,7 +104,7 @@ export function AssessmentRunner({
       setErrorKind("NETWORK");
       setStatus("error");
     }
-  }, [assessmentId, answers, resultsHref, router]);
+  }, [assessmentId, answers, hintsUsed, resultsHref, router]);
 
   // Keyboard navigation — use refs to avoid re-subscribing on every answer change.
   const stateRef = React.useRef({ status, current, answers, answeredCount, total, isLast });

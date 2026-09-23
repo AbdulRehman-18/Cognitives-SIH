@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import type { UserRole } from "@prisma/client";
@@ -24,6 +25,10 @@ export class ForbiddenError extends Error {
   }
 }
 
+// Deduplicated per request: a route-group layout and its page both call
+// requireRole, and this keeps that to a single session decode.
+const getSession = cache(() => auth());
+
 /**
  * Server Component / Server Action guard.
  * Redirects to sign-in when unauthenticated, or to a role-appropriate
@@ -32,7 +37,7 @@ export class ForbiddenError extends Error {
 export async function requireRole(
   roles: UserRole | UserRole[],
 ): Promise<Session> {
-  const session = await auth();
+  const session = await getSession();
   const allowed = Array.isArray(roles) ? roles : [roles];
 
   if (!session?.user) {

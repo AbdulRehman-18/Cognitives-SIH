@@ -2,8 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { DomainMatrix } from "@/components/caliper/domain-matrix";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -106,7 +104,7 @@ export default async function LearnerDashboardPage() {
   const coveragePct = totalComp ? Math.round((totalAssessed / totalComp) * 100) : 0;
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="page-shell py-[32px] md:py-[36px] flex flex-col gap-[20px]">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-[16px]">
@@ -243,6 +241,6 @@ export default async function LearnerDashboardPage() {
           <Link href="/profile" className={buttonVariants({ variant: "outline" })}>View profile →</Link>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

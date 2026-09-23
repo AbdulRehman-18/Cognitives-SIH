@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { ReasonBreakdown, type ReasonFactor } from "@/components/caliper/reason-breakdown";
 import { loadRecommendations } from "@/lib/recommendations/load-recommendations";
 import { RECOMMENDATION_WEIGHTS } from "@/lib/engines/recommendation";
@@ -13,7 +11,7 @@ export default async function CoursesPage() {
   const data = await loadRecommendations(session.user.id);
 
   return (
-    <AppShell roleLabel="Learner" userName={session.user.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="mx-auto max-w-[1120px] px-[20px] lg:px-[24px] py-[28px] flex flex-col gap-[20px]">
         <Breadcrumbs>
           <BreadcrumbItem href="/dashboard">Dashboard</BreadcrumbItem>
@@ -110,6 +108,6 @@ export default async function CoursesPage() {
           </>
         )}
       </div>
-    </AppShell>
+    </>
   );
 }

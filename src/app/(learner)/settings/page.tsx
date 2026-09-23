@@ -1,6 +1,5 @@
+import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/auth/rbac";
-import { AppShell } from "@/components/app-shell";
-import { LearnerNav } from "@/components/learner-nav";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
 
@@ -20,7 +19,7 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <AppShell roleLabel="Learner" userName={user?.name ?? session.user.email ?? "Officer"} nav={<LearnerNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[18px]">
         <div className="max-w-[720px]">
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Settings</h1>
@@ -63,7 +62,7 @@ export default async function SettingsPage() {
                 <Link href="/profile" className="shrink-0 rounded-full bg-[color:var(--color-ink)] text-[color:var(--color-canvas)] px-[14px] py-[7px] text-[12px] font-semibold">View profile</Link>
               </div>
               <div className="mt-[12px] grid grid-cols-1 sm:grid-cols-2 gap-[10px]">
-                <div className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]"><p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Member since</p><p className="text-[13px] font-medium mt-[4px]">{user ? new Date(user.createdAt).toLocaleDateString() : "—"}</p></div>
+                <div className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]"><p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Member since</p><p className="text-[13px] font-medium mt-[4px]">{user ? formatDate(user.createdAt) : "—"}</p></div>
                 <div className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]"><p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Auth</p><p className="text-[13px] font-medium mt-[4px]">Email · NextAuth</p></div>
               </div>
             </section>
@@ -115,7 +114,7 @@ export default async function SettingsPage() {
               <h3 className="text-[16px] font-[650] mt-[4px]">Your data, measured ranges</h3>
               <p className="text-[13px] leading-[1.6] opacity-70 mt-[6px]">We store calibrated ranges per competency, not punitive scores. Export a JSON or clear history — you own the trace.</p>
               <div className="mt-[14px] flex flex-wrap gap-[8px]">
-                <button className="rounded-full bg-[color:var(--color-surface-1)] text-[#141210] px-[14px] py-[8px] text-[13px] font-semibold">Export my data</button>
+                <button className="rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[14px] py-[8px] text-[13px] font-semibold">Export my data</button>
                 <button className="rounded-full border border-white/20 bg-[color:var(--color-surface-1)]/10 px-[14px] py-[8px] text-[13px] font-medium">Delete assessment history</button>
                 <button className="rounded-full border border-[#F04438]/30 bg-[#F04438]/20 text-[#FFD6D0] px-[14px] py-[8px] text-[13px] font-medium">Delete account</button>
               </div>
@@ -124,6 +123,6 @@ export default async function SettingsPage() {
           </div>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

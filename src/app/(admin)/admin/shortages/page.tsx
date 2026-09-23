@@ -1,7 +1,5 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { AppShell } from "@/components/app-shell";
-import { AdminNav } from "@/components/admin-nav";
 
 function ShortageColumns({ items }: { items: { name: string; domain: string; count: number }[] }) {
   const max = Math.max(...items.map((i) => i.count), 1);
@@ -29,7 +27,7 @@ function ShortageColumns({ items }: { items: { name: string; domain: string; cou
 }
 
 export default async function AdminShortagesPage() {
-  const session = await requireRole("ADMIN");
+  await requireRole("ADMIN");
   const criticalGaps = await db.skillGap.findMany({ where: { severity: "CRITICAL" }, select: { id: true, user: { select: { name: true, email: true, department: { select: { name: true } } } }, competency: { select: { name: true, domain: { select: { name: true } } } } } });
   const byComp = new Map<string, { name: string; domain: string; count: number; deptCounts: Map<string, number> }>();
   for (const g of criticalGaps) {
@@ -41,7 +39,7 @@ export default async function AdminShortagesPage() {
   const shortages = Array.from(byComp.values()).sort((a, b) => b.count - a.count);
 
   return (
-    <AppShell roleLabel="Admin" userName={session.user.name ?? session.user.email ?? "Admin"} nav={<AdminNav />}>
+    <>
       <div className="mx-auto max-w-[1100px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[20px]">
         <div className="max-w-[720px]">
           <h1 className="text-[34px] md:text-[40px] font-[720] tracking-[-0.03em] leading-[1.05]">Workforce shortages</h1>
@@ -111,6 +109,6 @@ export default async function AdminShortagesPage() {
           )}
         </section>
       </div>
-    </AppShell>
+    </>
   );
 }
