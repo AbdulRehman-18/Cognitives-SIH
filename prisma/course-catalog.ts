@@ -30,6 +30,9 @@ export interface CatalogCourse {
   level: number;
   durationHours: number;
   externalUrl?: string;
+  provider?: string;
+  /** ISO 639-1 code of the course's delivery language. */
+  language?: "en" | "hi";
 }
 
 const IGOT_PORTAL = "https://portal.igotkarmayogi.gov.in/";
@@ -116,6 +119,8 @@ function buildIgotCourses(): CatalogCourse[] {
       level,
       durationHours,
       externalUrl: row.externalUrl ?? IGOT_PORTAL,
+      provider: row.provider,
+      language: /[\u0900-\u097F]/.test(row.title) ? ("hi" as const) : ("en" as const),
     };
   });
 }
@@ -209,6 +214,8 @@ function buildNsstaCourses(): CatalogCourse[] {
       level: row.level ?? 3,
       durationHours: nsstaHours(row.days),
       externalUrl: NSSTA_SITE,
+      provider: row.institute,
+      language: "en" as const,
     };
   });
 }

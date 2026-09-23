@@ -4,10 +4,14 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db/client";
 import type { UserRole } from "@prisma/client";
+import { ssoProviders } from "@/lib/auth/sso";
 
-// Auth.js v5, Credentials provider. The Credentials provider does not
-// support database sessions, so `session.strategy` MUST be "jwt" — this is
-// not a stylistic choice, it is a hard requirement documented in the plan.
+// Auth.js v5: Credentials plus any env-enabled SSO providers
+// (src/lib/auth/sso.ts). The Credentials provider does not support database
+// sessions, so `session.strategy` MUST be "jwt" — this is not a stylistic
+// choice, it is a hard requirement documented in the plan. SSO sign-ins use
+// the Prisma adapter to create/link User + Account rows, and the jwt
+// callback reads the role from that DB user, never from IdP claims.
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
@@ -42,6 +46,7 @@ export const authConfig: NextAuthConfig = {
         };
       },
     }),
+    ...ssoProviders(),
   ],
   callbacks: {
     jwt: async ({ token, user }) => {

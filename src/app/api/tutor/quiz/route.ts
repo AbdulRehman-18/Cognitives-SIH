@@ -1,41 +1,147 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db/client";
 import { requireRoleApi, authErrorResponse } from "@/lib/auth/rbac";
-import { getAiProvider } from "@/lib/ai/provider";
 import { classifyAiError } from "@/lib/ai/errors";
+import { retrieveForUser } from "@/lib/rag/retrieve";
+import { generateMcqQuestions } from "@/lib/questions/generate-mcq";
+import { TUTOR_REFUSAL_THRESHOLD } from "@/lib/tutor/tutor";
 
-export const maxDuration = 20;
+// Learner self-evaluation quiz — src/app/api/tutor/quiz/route.ts
+//
+// Retrieve first, then generate: questions come ONLY from material the
+// learner can see (shared course documents + their own uploads), each citing
+// the chunk it was written from. A topic the material doesn't cover is
+// refused rather than answered from the model's general knowledge.
+//
+// Persisted as Assessment{type: SELF_EVAL}. Self-evaluation never feeds the
+// Competency Engine — official scores move only through diagnostics,
+// trainer-reviewed assessments and verified training records.
 
-const schema = z.object({
-  topic: z.string().min(2).max(200),
-  count: z.number().int().min(3).max(6).optional().default(5),
+export const maxDuration = 45;
+
+const RETRIEVAL_K = 8;
+
+const requestSchema = z.object({
+  competencyId: z.string().min(1),
+  topic: z.string().trim().min(2).max(200).optional(),
+  documentId: z.string().min(1).optional(),
+  count: z.number().int().min(3).max(8).optional().default(5),
+  language: z.enum(["en", "hi"]).optional().default("en"),
 });
 
-const quizSchema = z.object({
-  questions: z.array(z.object({
-    question: z.string().min(10),
-    A: z.string().min(1),
-    B: z.string().min(1),
-    C: z.string().min(1),
-    D: z.string().min(1),
-    answer: z.enum(["A","B","C","D"]),
-    why: z.string().min(10),
-  })).min(3).max(6),
-});
+export async function POST(request: Request) {
+  let session;
+  try {
+    session = await requireRoleApi("LEARNER");
+  } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
+    throw error;
+  }
 
-export async function POST(req: Request){
-  try{ await requireRoleApi(["LEARNER","TRAINER","ADMIN"]); }catch(e){ const r=authErrorResponse(e); if(r) return r; throw e; }
-  const body = await req.json().catch(()=>null);
-  const parsed = schema.safeParse(body);
-  if(!parsed.success) return NextResponse.json({error:"Invalid", issues:parsed.error.flatten()}, {status:400});
-  const { topic, count } = parsed.data;
+  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.flatten() }, { status: 400 });
+  }
+  const { competencyId, topic, documentId, count, language } = parsed.data;
 
-  const provider = getAiProvider();
-  const system = `You are SkillForge quiz generator. Output JSON only matching schema. Use KaTeX math: $...$ inline, $$...$$ display when needed. Do NOT mention PDFs, uploads, documents, chunks, citations, or retrieval. Questions must be self-contained.`;
-  const prompt = `Generate exactly ${count} distinct high-quality MCQs on topic: "${topic}". Mix difficulty. JSON {questions:[{question,A,B,C,D,answer,why}]}. why: 1-2 sentence explanation, no citation markers.`;
+  const competency = await db.competency.findUnique({ where: { id: competencyId }, include: { domain: true } });
+  if (!competency) return NextResponse.json({ error: "Competency not found" }, { status: 404 });
 
-  try{
-    const obj = await provider.generateObject({ schema: quizSchema, prompt, system, maxOutputTokens: 2500, schemaName:"quiz", schemaDescription:"5 MCQs" });
-    return NextResponse.json({ refused:false, citations:[], ...obj });
-  }catch(e){ const ae=classifyAiError(e); return NextResponse.json({error:ae.message, kind:ae.kind},{status:502}); }
+  if (documentId) {
+    const document = await db.document.findUnique({ where: { id: documentId } });
+    const visible = document && (document.scope === "SHARED" || document.ownerId === session.user.id);
+    if (!visible) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    if (document.processingStatus !== "READY") {
+      return NextResponse.json({ error: "That document is still being processed." }, { status: 422 });
+    }
+  }
+
+  const query = topic ?? `${competency.name} — ${competency.description ?? competency.domain.name}`;
+  let chunks;
+  try {
+    chunks = await retrieveForUser(session.user.id, query, RETRIEVAL_K, { documentId });
+  } catch (error) {
+    const aiError = classifyAiError(error);
+    return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
+  }
+
+  // Deterministic refusal, before any model call. A quiz scoped to one
+  // chosen document with no specific topic is a "quiz me on this document"
+  // request, so relevance to the competency label isn't required there.
+  const requireRelevance = Boolean(topic) || !documentId;
+  const grounded = requireRelevance ? chunks.filter((c) => c.similarity >= TUTOR_REFUSAL_THRESHOLD) : chunks;
+  if (grounded.length === 0) {
+    return NextResponse.json({
+      refused: true,
+      reason: topic
+        ? `“${topic}” isn't covered by the material available to you. Upload your notes on it, or pick another topic.`
+        : `No available material covers ${competency.name} yet. Upload your own notes, or ask your trainer to add a document.`,
+    });
+  }
+
+  let generated;
+  try {
+    generated = await generateMcqQuestions({
+      competencyName: competency.name,
+      domainName: competency.domain.name,
+      count,
+      topic,
+      chunks: grounded,
+      language,
+    });
+  } catch (error) {
+    const aiError = classifyAiError(error);
+    return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
+  }
+
+  const assessment = await db.assessment.create({
+    data: {
+      ownerId: session.user.id,
+      type: "SELF_EVAL",
+      competencies: [competencyId],
+      status: "PUBLISHED",
+      questions: {
+        create: generated.questions.map((q) => ({
+          competencyId,
+          stem: q.stem,
+          optionsJson: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+          difficulty: q.difficulty,
+          sourceChunkId: grounded[q.sourceChunkIndex].id,
+        })),
+      },
+    },
+    include: { questions: { orderBy: { createdAt: "asc" } } },
+  });
+
+  const documents = await db.document.findMany({
+    where: { id: { in: [...new Set(grounded.map((c) => c.documentId))] } },
+    select: { id: true, fileName: true, scope: true },
+  });
+  const documentTitle = new Map(
+    documents.map((d) => [d.id, `${d.fileName ?? "Course document"}${d.scope === "PERSONAL" ? " (your upload)" : ""}`]),
+  );
+  const chunkById = new Map(grounded.map((c) => [c.id, c]));
+
+  return NextResponse.json({
+    refused: false,
+    assessmentId: assessment.id,
+    competencyName: competency.name,
+    questions: assessment.questions.map((q) => {
+      const chunk = q.sourceChunkId ? chunkById.get(q.sourceChunkId) : undefined;
+      return {
+        id: q.id,
+        stem: q.stem,
+        options: q.optionsJson as string[],
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        citation: chunk
+          ? { chunkIndex: chunk.chunkIndex, content: chunk.content, similarity: chunk.similarity, documentTitle: documentTitle.get(chunk.documentId) }
+          : null,
+      };
+    }),
+  });
 }

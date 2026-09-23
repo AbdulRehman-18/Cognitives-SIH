@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import pgvector from "pgvector";
 import { db } from "@/lib/db/client";
 import { embedQuery } from "@/lib/rag/embed";
@@ -56,16 +57,21 @@ export async function retrieveFromDocument(
 }
 
 /**
- * Retrieves the top-`k` chunks across every READY document platform-wide
- * (used by the AI Tutor in Phase 7 — course material is trainer-uploaded
- * and shared, not owned per-learner, so there is no owner filter here).
- * Cosine similarity, same rules as above.
+ * Retrieves the top-`k` chunks visible to one user: every READY SHARED
+ * document (trainer course material) plus that user's own PERSONAL uploads —
+ * never another learner's personal material. Pass `documentId` to narrow to
+ * one document (it must still pass the same visibility rule). Used by the AI
+ * Tutor and the learner self-evaluation quiz. Cosine similarity, same rules
+ * as above.
  */
-export async function retrieveAcrossAllDocuments(
+export async function retrieveForUser(
+  userId: string,
   query: string,
   k = 5,
+  opts: { documentId?: string } = {},
 ): Promise<RetrievedChunk[]> {
   const queryVector = pgvector.toSql(await embedQuery(query));
+  const documentFilter = opts.documentId ? Prisma.sql`AND d.id = ${opts.documentId}` : Prisma.empty;
 
   const rows = await db.$queryRaw<
     { id: string; content: string; chunkIndex: number; documentId: string; similarity: number }[]
@@ -75,6 +81,8 @@ export async function retrieveAcrossAllDocuments(
     FROM "DocumentChunk" dc
     INNER JOIN "Document" d ON d.id = dc."documentId"
     WHERE d."processingStatus" = 'READY'
+      AND (d.scope = 'SHARED' OR d."ownerId" = ${userId})
+      ${documentFilter}
     ORDER BY dc.embedding <=> ${queryVector}::vector
     LIMIT ${k}
   `;

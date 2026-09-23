@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export interface PathTimelineItem { id: string; title: string; meta?: string; rationale?: string; href?: string; severityLabel?: string; severityClass?: string; }
+export interface PathTimelineItem { id: string; title: string; meta?: string; rationale?: string; href?: string; severityLabel?: string; severityClass?: string; /** e.g. the iGOT enrol/progress control */ action?: React.ReactNode; }
 export interface PathWeek { weekNumber: number; hours: number; items: PathTimelineItem[]; }
 export interface PathTimelineProps { weeks: PathWeek[]; maxWeeklyHours: number; className?: string; }
 
@@ -51,6 +51,7 @@ export function PathTimeline({ weeks, maxWeeklyHours, className }: PathTimelineP
                             </div>
                             {item.meta && <p className="text-[11px] tabular-mono text-muted-foreground mt-[6px]">{item.meta}</p>}
                             {item.rationale && <p className="text-[13px] leading-[1.55] text-muted-foreground mt-[8px]">{item.rationale}</p>}
+                            {item.action && <div className="mt-[12px]">{item.action}</div>}
                             <div className="mt-[12px] flex flex-wrap gap-[8px] items-center">
                               <span className="text-[11px] tabular-mono text-muted-foreground">Est. {item.meta?.match(/(\d+)h/)?.[1] ?? "?"}h</span>
                               <span className="text-muted-foreground text-[11px]">·</span>

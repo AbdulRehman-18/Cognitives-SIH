@@ -14,50 +14,14 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import pgvector from "pgvector";
-import { embedDocumentChunks } from "../src/lib/rag/embed-core";
+import { embedPendingCourses } from "../src/lib/rag/embed-courses";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
 
 async function main() {
-  // `embedding` is an Unsupported() column — invisible to the Prisma client,
-  // including filters. Find un-embedded courses with a raw query instead.
-  const pendingIds = await db.$queryRaw<{ id: string }[]>`
-    SELECT id FROM "Course" WHERE embedding IS NULL
-  `;
-  if (pendingIds.length === 0) {
-    console.log("All courses already have embeddings. Nothing to do.");
-    return;
-  }
-  const idList = pendingIds.map((row) => row.id);
-  const courses = await db.course.findMany({
-    where: { id: { in: idList } },
-    select: { id: true, title: true, description: true, competencies: true },
-  });
-
-  // Append human-readable competency names to the embedding text — Course.competencies
-  // stores ids, but the semantic signal lives in the names.
-  const competencies = await db.competency.findMany({ select: { id: true, name: true } });
-  const nameById = new Map(competencies.map((c) => [c.id, c.name]));
-
-  console.log(`Embedding ${courses.length} courses…`);
-  const texts = courses.map((course) => {
-    const names = course.competencies.map((id) => nameById.get(id)).filter(Boolean);
-    return `${course.title}\n${course.description}\nCompetencies: ${names.join(", ")}`;
-  });
-
-  const vectors = await embedDocumentChunks(texts);
-
-  for (let i = 0; i < courses.length; i++) {
-    await db.$executeRaw`
-      UPDATE "Course"
-      SET embedding = ${pgvector.toSql(vectors[i])}::vector
-      WHERE id = ${courses[i].id}
-    `;
-  }
-
-  console.log(`Done — ${vectors.length} course embeddings written.`);
+  const count = await embedPendingCourses(db);
+  console.log(count === 0 ? "All courses already have embeddings. Nothing to do." : `Done — ${count} course embeddings written.`);
 }
 
 main()

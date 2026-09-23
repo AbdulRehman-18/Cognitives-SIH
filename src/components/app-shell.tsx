@@ -1,20 +1,26 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/sign-out-button";
+import { LanguageToggle } from "@/components/language-toggle";
+import type { Locale } from "@/i18n/dictionaries";
 
 export function AppShell({
   roleLabel,
   userName,
   nav,
   children,
+  locale = "en",
+  labels = { signOut: "Sign out", language: "Language" },
 }: {
   roleLabel: string;
   userName: string;
   nav?: React.ReactNode;
   children: React.ReactNode;
+  locale?: Locale;
+  labels?: { signOut: string; language: string };
 }) {
   return (
-    <div className="flex min-h-full flex-col bg-[color:var(--color-canvas)]">
+    <div lang={locale} className="flex min-h-full flex-col bg-[color:var(--color-canvas)]">
       <header className="flex items-center justify-between border-b border-[color:var(--color-border-resting)] px-[20px] lg:px-[64px] py-[12px]">
         <Link href="/" className="flex items-center gap-[12px]">
           <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden>
@@ -30,8 +36,9 @@ export function AppShell({
           <span className="text-small text-muted-foreground">
             {userName} · <span className="uppercase tracking-[0.08em]">{roleLabel}</span>
           </span>
+          <LanguageToggle locale={locale} label={labels.language} />
           <ThemeToggle />
-          <SignOutButton />
+          <SignOutButton label={labels.signOut} />
         </div>
       </header>
       {nav}

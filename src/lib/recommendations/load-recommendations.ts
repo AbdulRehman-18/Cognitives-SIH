@@ -73,7 +73,9 @@ export async function loadRecommendations(userId: string): Promise<Recommendatio
         where: { roleId: user.roleId },
         select: { competencyId: true },
       }),
+      // Courses already completed (via iGOT sync) are never re-recommended.
       db.course.findMany({
+        where: { progress: { none: { userId, status: "COMPLETED" } } },
         select: {
           id: true,
           source: true,

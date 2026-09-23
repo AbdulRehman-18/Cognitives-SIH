@@ -24,7 +24,7 @@ export default async function TrainerLearnersPage() {
       const dept = deptMap.get(deptName)!;
       const key = at.user.id;
       if (!dept.learners.has(key)) dept.learners.set(key, { name: at.user.name ?? at.user.email, email: at.user.email, attempts: [] });
-      dept.learners.get(key)!.attempts.push(at as any);
+      dept.learners.get(key)!.attempts.push(at);
     }
   }
 

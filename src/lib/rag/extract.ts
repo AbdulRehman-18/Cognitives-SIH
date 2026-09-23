@@ -1,6 +1,7 @@
 import "server-only";
 
 import { parseOffice, type SupportedFileType } from "officeparser";
+import { captionsToText, isMediaType, transcribeMedia } from "./transcribe";
 
 // Extraction — src/lib/rag/extract.ts
 //
@@ -8,7 +9,8 @@ import { parseOffice, type SupportedFileType } from "officeparser";
 // auto-detects zip-backed formats from magic bytes for docx/pptx, and PDF
 // text extraction natively) rather than pdf-parse + mammoth as two separate
 // libraries — one dependency, one code path, per RestPlan.md Phase 4
-// "Extract". Video/audio transcription is explicitly out of scope (P2).
+// "Extract". Audio/video recordings are transcribed (./transcribe.ts), and
+// plain-text transcripts or captions (.txt/.vtt/.srt) are read directly.
 
 const EXTENSION_TO_FILE_TYPE: Record<string, SupportedFileType> = {
   pdf: "pdf",
@@ -24,7 +26,7 @@ const MIME_TO_FILE_TYPE: Record<string, SupportedFileType> = {
 
 export class UnsupportedDocumentTypeError extends Error {
   constructor(type: string) {
-    super(`Unsupported document type for extraction: "${type}". Supported: PDF, DOCX, PPTX.`);
+    super(`Unsupported document type for extraction: "${type}". Supported: PDF, DOCX, PPTX, audio/video, or a transcript (.txt/.vtt/.srt).`);
     this.name = "UnsupportedDocumentTypeError";
   }
 }
@@ -50,6 +52,15 @@ export function resolveFileType(type: string): SupportedFileType {
  * loudly, never silently produce an empty document.
  */
 export async function extractText(buffer: Buffer, type: string): Promise<string> {
+  const mime = type.split(";")[0].trim().toLowerCase();
+  if (isMediaType(mime)) return transcribeMedia(buffer, mime);
+  if (mime === "text/plain" || mime === "text/vtt" || mime === "application/x-subrip" || mime === "text/srt") {
+    const raw = buffer.toString("utf8");
+    const text = mime === "text/plain" ? raw.trim() : captionsToText(raw);
+    if (!text) throw new Error("The transcript file is empty.");
+    return text;
+  }
+
   const fileType = resolveFileType(type);
   const ast = await parseOffice(buffer, { fileType });
   const { value } = await ast.to("text");

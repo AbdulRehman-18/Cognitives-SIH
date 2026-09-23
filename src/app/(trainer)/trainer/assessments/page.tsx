@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/format";
+import { documentTypeLabel, formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -64,7 +64,7 @@ export default async function TrainerAssessmentsPage() {
             <GenerateMcqForm
               documents={readyDocuments.map((d) => ({
                 id: d.id,
-                label: `${d.type.includes("pdf") ? "PDF" : d.type.includes("word") ? "DOCX" : "PPTX"} · ${d.chunkCount} chunks · ${formatDate(d.createdAt)}`,
+                label: `${documentTypeLabel(d.type)} · ${d.chunkCount} chunks · ${formatDate(d.createdAt)}`,
               }))}
               competencies={competencies.map((c) => ({ id: c.id, label: `${c.domain.name} — ${c.name}` }))}
             />

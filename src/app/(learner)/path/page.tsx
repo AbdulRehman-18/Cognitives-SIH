@@ -3,12 +3,20 @@ import { requireRole } from "@/lib/auth/rbac";
 import { PathTimeline, type PathTimelineItem } from "@/components/caliper/path-timeline";
 import { loadLearningPath } from "@/lib/recommendations/load-learning-path";
 import { Breadcrumbs, BreadcrumbItem } from "@astryxdesign/core/Breadcrumbs";
+import { IgotCourseAction } from "@/components/igot/igot-course-action";
+import { igotMode } from "@/lib/igot";
+import { loadCourseIgotState } from "@/lib/igot/progress";
 
 export default async function PathPage() {
   const session = await requireRole("LEARNER");
   const data = await loadLearningPath(session.user.id);
   const weeks = data?.weeks ?? [];
   const totalH = weeks.reduce((s: number, w: { hours: number }) => s + w.hours, 0);
+  const igotState = await loadCourseIgotState(
+    session.user.id,
+    weeks.flatMap((w) => w.items.map((i) => i.courseId)),
+  );
+  const mockMode = igotMode() === "mock";
 
   return (
     <>
@@ -41,7 +49,7 @@ export default async function PathPage() {
           </div>
         ) : (
           <PathTimeline
-            weeks={weeks.map((week: { weekNumber: number; hours: number; items: { recommendationId: string; courseTitle: string; source: string; hours: number; rationale: string; externalUrl: string | null; severity: string }[] }) => ({
+            weeks={weeks.map((week: { weekNumber: number; hours: number; items: { recommendationId: string; courseId: string; courseTitle: string; source: string; hours: number; rationale: string; externalUrl: string | null; severity: string }[] }) => ({
               weekNumber: week.weekNumber,
               hours: week.hours,
               items: week.items.map(
@@ -51,6 +59,15 @@ export default async function PathPage() {
                   meta: `${item.source === "IGOT" ? "iGOT Karmayogi" : "NSSTA"} · ${item.hours}h`,
                   rationale: item.rationale,
                   href: item.externalUrl ?? undefined,
+                  action: (
+                    <IgotCourseAction
+                      courseId={item.courseId}
+                      source={item.source === "IGOT" ? "IGOT" : "NSSTA"}
+                      synced={igotState.get(item.courseId)?.synced ?? false}
+                      progress={igotState.get(item.courseId)?.progress ?? null}
+                      mockMode={mockMode}
+                    />
+                  ),
                   severityLabel: item.severity.charAt(0) + item.severity.slice(1).toLowerCase(),
                   severityClass:
                     item.severity === "CRITICAL"

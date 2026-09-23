@@ -7,6 +7,8 @@ export interface SourceChunkCardProps {
   content: string;
   /** Cosine similarity to the retrieval query that surfaced this chunk, 0..1. */
   similarity?: number;
+  /** Name of the originating document, when known. */
+  documentTitle?: string;
   className?: string;
 }
 
@@ -17,7 +19,7 @@ export interface SourceChunkCardProps {
  * foreign key — a trainer reviewing a question can see, in the same
  * glance, whether it actually reflects the source text.
  */
-export function SourceChunkCard({ chunkIndex, content, similarity, className }: SourceChunkCardProps) {
+export function SourceChunkCard({ chunkIndex, content, similarity, documentTitle, className }: SourceChunkCardProps) {
   return (
     <div
       className={cn(
@@ -28,7 +30,8 @@ export function SourceChunkCard({ chunkIndex, content, similarity, className }: 
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           <FileText className="size-3.5" aria-hidden />
-          Source chunk #{chunkIndex}
+          {documentTitle ? <span className="normal-case truncate max-w-[24ch]">{documentTitle}</span> : null}
+          {documentTitle ? " · " : null}Source chunk #{chunkIndex}
         </div>
         {similarity !== undefined ? (
           <span className="tabular-mono text-[11px] text-muted-foreground">

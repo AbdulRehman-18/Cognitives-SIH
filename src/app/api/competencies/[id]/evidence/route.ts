@@ -23,13 +23,25 @@ export async function GET(
       include: { evidence: { orderBy: { createdAt: "desc" } } },
     });
 
+    const evidence = userCompetency?.evidence ?? [];
+    const idsOf = (type: string) => evidence.filter((e) => e.sourceType === type).map((e) => e.sourceId);
+    const [trainings, completions] = await Promise.all([
+      db.priorTraining.findMany({ where: { id: { in: idsOf("PRIOR_TRAINING") } }, select: { id: true, title: true, source: true } }),
+      db.learningProgress.findMany({ where: { id: { in: idsOf("COURSE_COMPLETION") } }, select: { id: true, course: { select: { title: true } } } }),
+    ]);
+    const titles = new Map<string, string>([
+      ...trainings.map((t) => [t.id, `${t.source === "IGOT" ? "iGOT course (imported)" : "Prior training"}: ${t.title}`] as const),
+      ...completions.map((c) => [c.id, `Completed on iGOT: ${c.course?.title ?? "course"}`] as const),
+    ]);
+
+
     return NextResponse.json({
       competencyName: competency.name,
       currentScore: userCompetency?.currentScore ? Number(userCompetency.currentScore) : null,
-      evidence: (userCompetency?.evidence ?? []).map((row) => ({
+      evidence: evidence.map((row) => ({
         id: row.id,
         sourceType: row.sourceType,
-        sourceLabel: sourceLabelFor(row.sourceType, row.sourceId),
+        sourceLabel: titles.get(row.sourceId) ?? sourceLabelFor(row.sourceType, row.sourceId),
         contribution: Number(row.contribution),
         weight: Number(row.weight),
         createdAt: row.createdAt.toISOString(),

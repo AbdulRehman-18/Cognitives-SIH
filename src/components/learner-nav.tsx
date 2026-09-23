@@ -4,15 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "Gap Report", href: "/gaps" },
-  { label: "Learning Path", href: "/path" },
-  { label: "Tutor", href: "/tutor" },
-  { label: "Profile", href: "/profile" },
-] as const;
+import type { Dictionary } from "@/i18n/dictionaries";
 
-export function LearnerNav() {
+type NavLabels = Dictionary["learnerNav"];
+
+const TABS: { key: keyof NavLabels; href: string }[] = [
+  { key: "overview", href: "/dashboard" },
+  { key: "gaps", href: "/gaps" },
+  { key: "path", href: "/path" },
+  { key: "tutor", href: "/tutor" },
+  { key: "lab", href: "/lab" },
+  { key: "profile", href: "/profile" },
+];
+
+const DEFAULT_LABELS: NavLabels = { overview: "Overview", gaps: "Gap Report", path: "Learning Path", tutor: "Tutor", lab: "Lab", profile: "Profile", settings: "Settings" };
+
+export function LearnerNav({ labels = DEFAULT_LABELS }: { labels?: NavLabels }) {
   const pathname = usePathname();
   // Assessments run in a focused, nav-free mode.
   if (pathname === "/assessment" || pathname?.startsWith("/assessment/")) return null;
@@ -30,11 +37,11 @@ export function LearnerNav() {
               active ? "bg-[color:var(--color-accent)] text-white shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-[color:var(--color-surface-1)]"
             )}
           >
-            {tab.label}
+            {labels[tab.key]}
           </Link>
         );
       })}
-      <Link href="/settings" className={cn("ml-auto hidden md:inline-flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[6px] text-[12px] font-medium text-muted-foreground hover:text-foreground", pathname === "/settings" ? "bg-foreground text-white border-transparent" : "")}>Settings</Link>
+      <Link href="/settings" className={cn("ml-auto hidden md:inline-flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[6px] text-[12px] font-medium text-muted-foreground hover:text-foreground", pathname === "/settings" ? "bg-foreground text-white border-transparent" : "")}>{labels.settings}</Link>
     </nav>
   );
 }

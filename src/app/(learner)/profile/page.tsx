@@ -2,6 +2,8 @@ import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
+import { EDUCATION_LEVELS } from "@/lib/validation/onboarding";
+import { BackgroundForm, TrainingRecord, type TrainingRow } from "./training-record";
 
 function DomainTicks({ level }: { level: number | null }) {
   return (
@@ -15,15 +17,42 @@ function DomainTicks({ level }: { level: number | null }) {
 
 export default async function ProfilePage() {
   const session = await requireRole("LEARNER");
-  const [dbUser, profile, domains, comps, gaps, quizAttempts, userCompetencies] = await Promise.all([
+  const [dbUser, profile, domains, comps, gaps, quizAttempts, userCompetencies, priorTrainings, completions, allCompetencies] = await Promise.all([
     db.user.findUnique({ where: { id: session.user.id }, select: { email: true, name: true, department: { select: { name: true } }, role: true } }),
     db.officerProfile.findUnique({ where: { userId: session.user.id } }),
     db.domain.findMany({ include: { _count: { select: { competencies: true } } } }),
     db.userCompetency.findMany({ where: { userId: session.user.id }, include: { competency: { select: { domainId: true } } } }),
     db.skillGap.findMany({ where: { userId: session.user.id }, include: { competency: { select: { name: true } } } }),
-    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 6, include: { assessment: { select: { competencies: true } } } }),
+    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 6, include: { assessment: { select: { competencies: true, type: true } } } }),
     db.userCompetency.findMany({ where: { userId: session.user.id, currentScore: { not: null } }, select: { currentScore: true, competency: { select: { domainId: true } } } }),
+    db.priorTraining.findMany({ where: { userId: session.user.id }, orderBy: { completedAt: "desc" } }),
+    db.learningProgress.findMany({ where: { userId: session.user.id, status: "COMPLETED" }, orderBy: { completedAt: "desc" }, include: { course: { select: { title: true, competencies: true } } } }),
+    db.competency.findMany({ orderBy: [{ domain: { name: "asc" } }, { name: "asc" }], select: { id: true, name: true, domain: { select: { name: true } } } }),
   ]);
+
+  const competencyName = new Map(allCompetencies.map((c) => [c.id, c.name]));
+  const trainingRows: TrainingRow[] = [
+    ...completions.map((c) => ({
+      id: c.id,
+      kind: "IGOT_COMPLETION" as const,
+      title: c.course?.title ?? "iGOT course",
+      detail: c.completedAt ? `completed ${formatDate(c.completedAt)}` : "completed",
+      competencies: (c.course?.competencies ?? []).map((id) => competencyName.get(id) ?? id),
+      deletable: false,
+    })),
+    ...priorTrainings.map((t) => ({
+      id: t.id,
+      kind: t.source === "IGOT" ? ("PRIOR_IGOT" as const) : ("PRIOR_SELF" as const),
+      title: t.title,
+      detail: [t.provider, `completed ${formatDate(t.completedAt)}`].filter(Boolean).join(" · "),
+      competencies: t.competencyIds.map((id) => competencyName.get(id) ?? id),
+      deletable: true,
+    })),
+  ];
+  const now = new Date();
+  const maxMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const [educationLevel, educationField] = (profile?.education ?? "").split(" — ");
+  const ASSESSMENT_LABEL: Record<string, string> = { DIAGNOSTIC: "Diagnostic", STANDARD: "Trainer assessment", POST_LEARNING: "Post-learning check", SELF_EVAL: "Self-evaluation quiz" };
 
   const assessed = comps.filter((c) => c.currentScore !== null).length;
   const total = domains.reduce((s, d) => s + d._count.competencies, 0);
@@ -73,11 +102,11 @@ export default async function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold tracking-[0.08em] uppercase opacity-60">Profile completeness</p>
-                  <p className="text-[13px] font-medium leading-tight mt-[2px]">Progressive profiling — enrich to 100% for sharper gaps.</p>
+                  <p className="text-[13px] font-medium leading-tight mt-[2px]">Add background and training history below for sharper gaps.</p>
                 </div>
               </div>
               <div className="flex gap-[8px]">
-                <Link href="/settings" className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</Link>
+                <a href="#background" className="flex-1 rounded-full bg-[color:var(--color-surface-1)] text-foreground px-[14px] py-[8px] text-[13px] font-semibold text-center">Edit profile</a>
                 <Link href="/gaps" className="flex-1 rounded-full bg-[color:var(--color-surface-1)]/10 border border-white/20 text-white px-[14px] py-[8px] text-[13px] font-medium text-center">View gaps</Link>
               </div>
             </div>
@@ -96,6 +125,7 @@ export default async function ProfilePage() {
                   { k: "Job role", v: profile?.jobRole ?? "Pending" },
                   { k: "Experience", v: profile?.yearsExperience ? `${profile.yearsExperience} years` : "—" },
                   { k: "Education", v: profile?.education ?? "—" },
+                  { k: "Current assignment", v: profile?.currentAssignment ?? "—" },
                   { k: "Member since", v: profile ? formatDate(profile.createdAt) : "—" },
                 ].map((f) => (
                   <div key={f.k} className="rounded-[12px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[12px] py-[11px]">
@@ -104,6 +134,18 @@ export default async function ProfilePage() {
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section id="background" className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px] scroll-mt-[24px]">
+              <h2 className="text-[13px] font-[650] mb-[10px]">Background</h2>
+              <BackgroundForm
+                initial={{
+                  education: (EDUCATION_LEVELS as readonly string[]).includes(educationLevel) ? educationLevel : "",
+                  educationField: educationField ?? "",
+                  yearsExperience: profile?.yearsExperience?.toString() ?? "",
+                  currentAssignment: profile?.currentAssignment ?? "",
+                }}
+              />
             </section>
 
             <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
@@ -138,7 +180,7 @@ export default async function ProfilePage() {
                       <span className={`absolute left-0 top-[14px] size-[10px] rounded-full border-2 ${q.submittedAt ? "bg-[#12B76A] border-[#12B76A]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`} />
                       <div className="flex-1 min-w-0 rounded-[12px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] px-[12px] py-[10px] flex items-center gap-[10px]">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium truncate">Diagnostic · {q.assessment.competencies.length} competencies</p>
+                          <p className="text-[13px] font-medium truncate">{ASSESSMENT_LABEL[q.assessment.type] ?? "Assessment"} · {q.assessment.competencies.length} competenc{q.assessment.competencies.length === 1 ? "y" : "ies"}</p>
                           <p className="text-[11px] tabular-mono text-muted-foreground">{formatDate(q.startedAt)} · {q.submittedAt ? `Score ${Number(q.score ?? 0).toFixed(0)}/100` : "In progress"}</p>
                         </div>
                         <span className={`shrink-0 rounded-full px-[8px] py-[3px] text-[11px] font-semibold border ${q.submittedAt ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`}>{q.submittedAt ? "Completed" : "Ongoing"}</span>
@@ -151,6 +193,12 @@ export default async function ProfilePage() {
               )}
               <Link href="/assessment/new" className="mt-[12px] inline-flex rounded-full bg-[#2E3AFF] text-white px-[14px] py-[8px] text-[13px] font-semibold">Start new diagnostic →</Link>
             </section>
+
+            <TrainingRecord
+              rows={trainingRows}
+              competencies={allCompetencies.map((c) => ({ id: c.id, name: c.name, domainName: c.domain.name }))}
+              maxMonth={maxMonth}
+            />
 
             <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
               <h2 className="text-[13px] font-[650]">Open gaps</h2>

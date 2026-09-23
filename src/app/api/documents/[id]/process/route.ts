@@ -15,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireRoleApi("TRAINER");
+    const session = await requireRoleApi(["TRAINER", "LEARNER"]);
     const { id: documentId } = await params;
 
     const document = await db.document.findUnique({ where: { id: documentId } });

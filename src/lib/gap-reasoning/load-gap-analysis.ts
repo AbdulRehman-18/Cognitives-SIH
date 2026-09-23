@@ -24,7 +24,11 @@ export interface GapDashboardData {
  * role's RoleCompetency rows are what define "required level" — without a
  * role there is nothing to compare against).
  */
-export async function loadGapAnalysis(userId: string): Promise<GapDashboardData | null> {
+export async function loadGapAnalysis(
+  userId: string,
+  opts: { withAiReasons?: boolean } = {},
+): Promise<GapDashboardData | null> {
+  const { withAiReasons = true } = opts;
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { roleId: true, departmentId: true },
@@ -68,13 +72,15 @@ export async function loadGapAnalysis(userId: string): Promise<GapDashboardData 
 
   const { gaps, unknown } = computeGapAnalysis(inputs);
 
-  const reasonResults = await generateGapReasons(gaps);
+  // Background recomputes (iGOT progress sync) skip the LLM and use the
+  // deterministic fallback sentence; the next page view regenerates reasons.
   const reasons: Record<string, string> = {};
-  for (const r of reasonResults) {
-    reasons[r.competencyId] = r.reason;
+  if (withAiReasons) {
+    for (const r of await generateGapReasons(gaps)) reasons[r.competencyId] = r.reason;
   }
 
   await persistGaps(userId, gaps, reasons);
+  await snapshotGaps(userId, user.departmentId, gaps);
 
   return { gaps, unknown, reasons };
 }
@@ -91,6 +97,12 @@ async function persistGaps(
   gaps: Awaited<ReturnType<typeof computeGapAnalysis>>["gaps"],
   reasons: Record<string, string>,
 ): Promise<void> {
+  // A gap that closed (level now meets the role target) or became unknown
+  // is no longer in `gaps` — remove its row so dashboards and admin
+  // analytics don't keep counting it. Recommendations/path items cascade.
+  await db.skillGap.deleteMany({
+    where: { userId, competencyId: { notIn: gaps.map((g) => g.competencyId) } },
+  });
   await Promise.all(
     gaps.map((gap) => {
       const reason = reasons[gap.competencyId] ?? fallbackGapReason(gap);
@@ -116,5 +128,31 @@ async function persistGaps(
         },
       });
     }),
+  );
+}
+
+/**
+ * Records today's gap state for the admin forecast (GapSnapshot). One row
+ * per (day, user, competency): re-running the same day overwrites, and
+ * competencies with no current gap have today's row removed.
+ */
+async function snapshotGaps(
+  userId: string,
+  departmentId: string | null,
+  gaps: Awaited<ReturnType<typeof computeGapAnalysis>>["gaps"],
+): Promise<void> {
+  const now = new Date();
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  await db.gapSnapshot.deleteMany({
+    where: { day, userId, competencyId: { notIn: gaps.map((g) => g.competencyId) } },
+  });
+  await Promise.all(
+    gaps.map((gap) =>
+      db.gapSnapshot.upsert({
+        where: { day_userId_competencyId: { day, userId, competencyId: gap.competencyId } },
+        create: { day, userId, departmentId, competencyId: gap.competencyId, severity: gap.severity, gapSize: gap.gapSize },
+        update: { departmentId, severity: gap.severity, gapSize: gap.gapSize },
+      }),
+    ),
   );
 }

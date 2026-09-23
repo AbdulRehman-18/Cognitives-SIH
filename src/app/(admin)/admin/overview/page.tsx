@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
+import { loadCompetencyDistribution } from "@/lib/analytics/load-analytics";
 
 function SeverityDonut({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
@@ -93,6 +94,10 @@ export default async function AdminOverviewPage() {
   );
   const sortedDepts = [...deptStats].sort((a, b) => b.gapCount - a.gapCount);
 
+  const distribution = await loadCompetencyDistribution();
+  const cellFor = (dept: string, domain: string) =>
+    distribution.cells.find((c) => c.departmentName === dept && c.domainName === domain);
+
   return (
     <>
       <div className="mx-auto max-w-[1180px] px-[20px] lg:px-[24px] py-[32px] flex flex-col gap-[24px]">
@@ -164,6 +169,66 @@ export default async function AdminOverviewPage() {
             </section>
           </div>
         </div>
+
+        <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px]">
+          <div className="flex flex-wrap items-baseline justify-between gap-[8px]">
+            <h2 className="text-[16px] font-[650]">Competency distribution — division × domain</h2>
+            <span className="text-[12px] text-muted-foreground">Mean measured score (0–100) across each role’s required competencies · coverage = share measured</span>
+          </div>
+          {distribution.cells.length === 0 ? (
+            <p className="mt-[12px] text-[13px] text-muted-foreground">No learners with an assigned role yet.</p>
+          ) : (
+            <div className="mt-[14px] overflow-x-auto">
+              <table className="w-full min-w-[640px] border-separate border-spacing-[4px] text-[12px]">
+                <thead>
+                  <tr>
+                    <th className="text-left font-semibold text-muted-foreground px-[6px]">Division</th>
+                    {distribution.domains.map((d) => <th key={d} className="font-semibold text-muted-foreground px-[6px] text-center">{d}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {distribution.departments.map((dept) => (
+                    <tr key={dept}>
+                      <td className="px-[6px] py-[4px] font-medium max-w-[220px] truncate" title={dept}>{dept}</td>
+                      {distribution.domains.map((domain) => {
+                        const cell = cellFor(dept, domain);
+                        const score = cell?.meanScore ?? null;
+                        return (
+                          <td
+                            key={domain}
+                            className="rounded-[8px] px-[8px] py-[8px] text-center tabular-mono"
+                            style={{ background: score === null ? "var(--color-canvas)" : `color-mix(in oklab, var(--color-accent) ${Math.round(12 + (score / 100) * 60)}%, transparent)`, color: score !== null && score > 60 ? "white" : undefined }}
+                            title={cell ? `${cell.assessed}/${cell.observations} measured` : "Not required by any role here"}
+                          >
+                            {cell ? (score === null ? "—" : Math.round(score)) : ""}
+                            {cell && <span className="block text-[10px] opacity-75">{Math.round(cell.coverage * 100)}% measured</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-[12px] grid grid-cols-2 md:grid-cols-4 gap-[10px]">
+                {distribution.domains.map((domain) => {
+                  const hist = distribution.levelHistogram[domain];
+                  const max = Math.max(...hist, 1);
+                  return (
+                    <div key={domain} className="rounded-[12px] border border-[color:var(--color-border-resting)] px-[10px] py-[8px]">
+                      <p className="text-[11px] font-semibold truncate">{domain}</p>
+                      <div className="mt-[6px] flex items-end gap-[4px] h-[36px]" aria-label={`Level distribution for ${domain}: ${hist.join(", ")}`}>
+                        {hist.map((n, i) => (
+                          <div key={i} className="flex-1 rounded-t-[3px] bg-[color:var(--color-accent)]" style={{ height: `${Math.max(4, (n / max) * 100)}%`, opacity: n ? 0.35 + (i / 4) * 0.65 : 0.12 }} />
+                        ))}
+                      </div>
+                      <p className="mt-[4px] text-[10px] tabular-mono text-muted-foreground">Levels 1→5 · {hist.reduce((a, b) => a + b, 0)} measured</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[20px]">
           <div className="flex items-baseline justify-between gap-[8px]">

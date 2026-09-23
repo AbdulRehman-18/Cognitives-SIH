@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDateTime } from "@/lib/format";
+import { documentTypeLabel, formatDateTime } from "@/lib/format";
 import * as React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -37,13 +37,6 @@ function stageKeyFor(status: DocumentSummary["processingStatus"]): string {
   if (status === "PENDING") return "EXTRACTING";
   if (status === "FAILED") return "EXTRACTING"; // overridden per-row below using the persisted stage from errorMessage
   return status;
-}
-
-function friendlyType(type: string): string {
-  if (type.includes("pdf")) return "PDF";
-  if (type.includes("wordprocessing")) return "DOCX";
-  if (type.includes("presentation")) return "PPTX";
-  return type;
 }
 
 /** Extracts the failed stage key from a pipeline error message like "Failed while EMBEDDING: ...". */
@@ -121,7 +114,7 @@ export function DocumentList({ initialDocuments }: { initialDocuments: DocumentS
                 <div className="flex items-center gap-2">
                   <FileText className="size-4 text-muted-foreground" aria-hidden />
                   <span className="text-sm font-medium text-foreground">
-                    {friendlyType(doc.type)} document
+                    {documentTypeLabel(doc.type)} document
                   </span>
                   <span className="tabular-mono text-xs text-muted-foreground">
                     {formatDateTime(doc.createdAt)}

@@ -2,18 +2,20 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { requireRoleApi, authErrorResponse } from "@/lib/auth/rbac";
-import { retrieveAcrossAllDocuments } from "@/lib/rag/retrieve";
+import { retrieveForUser } from "@/lib/rag/retrieve";
 import { classifyAiError } from "@/lib/ai/errors";
 import { getAiProvider } from "@/lib/ai/provider";
 import {
   buildTutorSystemPrompt,
   buildDemoTutorSystemPrompt,
   describeLearnerLevel,
+  languageInstruction,
   tutorRefusalMessage,
   TUTOR_RETRIEVAL_K,
   TUTOR_REFUSAL_THRESHOLD,
   TUTOR_DEMO_MODE,
   type TutorCitation,
+  type TutorLanguage,
 } from "@/lib/tutor/tutor";
 
 // AI Tutor streaming route — src/app/api/tutor/route.ts
@@ -40,6 +42,7 @@ const tutorRequestSchema = z.object({
     .min(1)
     .max(24),
   mode: z.enum(["explain", "guide", "quiz"]).optional().default("explain"),
+  language: z.enum(["en", "hi"]).optional().default("en"),
 });
 
 export async function POST(request: Request) {
@@ -69,7 +72,8 @@ export async function POST(request: Request) {
   // ── Retrieval first — always. Never generate ungrounded. ──────────────
   let chunks;
   try {
-    chunks = await retrieveAcrossAllDocuments(question, TUTOR_RETRIEVAL_K);
+    // Shared course material + this learner's own uploads only.
+    chunks = await retrieveForUser(session.user.id, question, TUTOR_RETRIEVAL_K);
   } catch (error) {
     const aiError = classifyAiError(error);
     return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
@@ -81,12 +85,12 @@ export async function POST(request: Request) {
   // ── DEMO MODE: bypass document grounding, answer from model knowledge ──
   // Keeps guardrail against generic off-topic (time, celebrities, etc.)
   if (TUTOR_DEMO_MODE && refused) {
-    return demoResponse(parsed.data.messages, parsed.data.mode, session.user.id);
+    return demoResponse(parsed.data.messages, parsed.data.mode, session.user.id, parsed.data.language);
   }
 
   // Deterministic refusal — no model call at all when out of scope.
   if (refused) {
-    return refusalResponse();
+    return refusalResponse(parsed.data.language);
   }
 
   const groundedChunks = chunks.filter((chunk) => chunk.similarity >= TUTOR_REFUSAL_THRESHOLD);
@@ -95,13 +99,16 @@ export async function POST(request: Request) {
   const documentIds = [...new Set(groundedChunks.map((c) => c.documentId))];
   const documents = await db.document.findMany({
     where: { id: { in: documentIds } },
-    select: { id: true },
+    select: { id: true, fileName: true, scope: true },
   });
-  void documents;
+  const documentTitle = new Map(
+    documents.map((d) => [d.id, `${d.fileName ?? "Course document"}${d.scope === "PERSONAL" ? " (your upload)" : ""}`]),
+  );
 
   const citations: TutorCitation[] = groundedChunks.map((chunk, index) => ({
     ...chunk,
     marker: index + 1,
+    documentTitle: documentTitle.get(chunk.documentId),
   }));
 
   // Calibrate to the learner's measured levels (real UserCompetency rows).
@@ -117,7 +124,7 @@ export async function POST(request: Request) {
         : null,
   }));
 
-  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels), parsed.data.mode);
+  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels), parsed.data.mode, parsed.data.language);
 
   const provider = getAiProvider();
   const iterator = provider.streamText({
@@ -145,6 +152,7 @@ export async function POST(request: Request) {
       chunkIndex: c.chunkIndex,
       content: c.content,
       similarity: c.similarity,
+      documentTitle: c.documentTitle,
     })),
   });
 
@@ -177,7 +185,7 @@ export async function POST(request: Request) {
   });
 }
 
-async function demoResponse(messages: { role: "user" | "assistant"; content: string }[], mode: "explain" | "guide" | "quiz", userId: string): Promise<Response> {
+async function demoResponse(messages: { role: "user" | "assistant"; content: string }[], mode: "explain" | "guide" | "quiz", userId: string, language: TutorLanguage): Promise<Response> {
   const competencies = await db.userCompetency.findMany({
     where: { userId },
     select: { currentScore: true, competency: { select: { name: true } } },
@@ -186,7 +194,7 @@ async function demoResponse(messages: { role: "user" | "assistant"; content: str
     name: uc.competency.name,
     level: uc.currentScore != null ? Math.max(1, Math.min(5, Math.ceil(Number(uc.currentScore) / 20))) : null,
   }));
-  const system = buildDemoTutorSystemPrompt(describeLearnerLevel(learnerLevels), mode);
+  const system = `${buildDemoTutorSystemPrompt(describeLearnerLevel(learnerLevels), mode)}\n${languageInstruction(language)}`;
   const provider = getAiProvider();
   const iterator = provider.streamText({ messages, system })[Symbol.asyncIterator]();
   let first;
@@ -209,12 +217,12 @@ async function demoResponse(messages: { role: "user" | "assistant"; content: str
   return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-function refusalResponse(): Response {
+function refusalResponse(language: TutorLanguage): Response {
   const encoder = new TextEncoder();
   const header = JSON.stringify({ refused: true, citations: [] });
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(encoder.encode(`${header}\n\n${tutorRefusalMessage()}`));
+      controller.enqueue(encoder.encode(`${header}\n\n${tutorRefusalMessage(language)}`));
       controller.close();
     },
   });

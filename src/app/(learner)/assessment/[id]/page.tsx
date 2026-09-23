@@ -2,17 +2,18 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { AssessmentRunner, type RunnerQuestion } from "@/app/(learner)/assessment/[id]/assessment-runner";
+import { maxAdaptiveItems } from "@/lib/engines/adaptive";
 
 export default async function AssessmentPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ context?: string }>;
+  searchParams: Promise<{ context?: string; mode?: string }>;
 }) {
   const session = await requireRole("LEARNER");
   const { id } = await params;
-  const { context } = await searchParams;
+  const { context, mode } = await searchParams;
 
   const assessment = await db.assessment.findUnique({
     where: { id },
@@ -24,7 +25,8 @@ export default async function AssessmentPage({
     },
   });
 
-  if (!assessment) {
+  // Self-evaluation quizzes run on /tutor/quiz, never through the official runner.
+  if (!assessment || assessment.type === "SELF_EVAL") {
     notFound();
   }
 
@@ -47,6 +49,12 @@ export default async function AssessmentPage({
       ? assessment.questions.filter((q) => q.reviewStatus === "APPROVED")
       : assessment.questions;
 
+  // Adaptive mode only for the learner's own diagnostic (its pool is sized for it).
+  const adaptive =
+    mode === "adaptive" && assessment.type === "DIAGNOSTIC" && isOwner
+      ? { maxItems: maxAdaptiveItems(visibleQuestions.map((q) => ({ id: q.id, competencyId: q.competencyId, difficulty: Number(q.difficulty) }))) }
+      : undefined;
+
   const questions: RunnerQuestion[] = visibleQuestions.map((q) => ({
     id: q.id,
     stem: q.stem,
@@ -61,6 +69,7 @@ export default async function AssessmentPage({
       <AssessmentRunner
         assessmentId={assessment.id}
         questions={questions}
+        adaptive={adaptive}
         // PRD §5.4: the onboarding diagnostic never lands on the generic
         // results screen with a "go to dashboard" exit — it routes straight
         // to the partial gap report, which itself picks the one next action.

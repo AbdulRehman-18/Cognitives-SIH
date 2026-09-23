@@ -33,9 +33,12 @@ export function AssessmentRunner({
   assessmentId,
   questions,
   resultsHref,
+  adaptive,
 }: {
   assessmentId: string;
   questions: RunnerQuestion[];
+  /** Adaptive diagnostic: the server picks each next item from the pool. */
+  adaptive?: { maxItems: number };
   /** When set, a successful submit navigates here instead of rendering the
    * generic AssessmentResults screen inline — used by the onboarding
    * diagnostic to route straight to the partial gap report (PRD §5.4). */
@@ -49,11 +52,42 @@ export function AssessmentRunner({
   const [results, setResults] = React.useState<CompetencyResult[] | null>(null);
   const [hintsUsed, setHintsUsed] = React.useState<Record<string, number>>({});
 
-  const current = questions[index];
-  const total = questions.length;
+  const questionById = React.useMemo(() => new Map(questions.map((q) => [q.id, q])), [questions]);
+  // Order of questions shown so far — the full list up front, or grown one
+  // server-selected item at a time in adaptive mode.
+  const [revealed, setRevealed] = React.useState<string[]>(() => (adaptive ? [] : questions.map((q) => q.id)));
+  const [loadingNext, setLoadingNext] = React.useState(Boolean(adaptive));
+
+  const current = questionById.get(revealed[index]);
+  const total = adaptive ? adaptive.maxItems : questions.length;
   const answeredCount = Object.keys(answers).length;
   const selected = current ? answers[current.id] : undefined;
-  const isLast = index === total - 1;
+  // Adaptive tests finish when the server has no next item, so "Next" doubles as finish.
+  const isLast = !adaptive && index === total - 1;
+
+  const fetchNext = React.useCallback(
+    async (given: Record<string, string>, signal?: AbortSignal): Promise<string | null> => {
+      const res = await fetch(`/api/assessments/${assessmentId}/next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: Object.entries(given).map(([questionId, selectedAnswer]) => ({ questionId, selectedAnswer })) }),
+        signal,
+      });
+      if (!res.ok) throw new Error("next");
+      return ((await res.json()) as { nextId: string | null }).nextId;
+    },
+    [assessmentId],
+  );
+
+  React.useEffect(() => {
+    if (!adaptive) return;
+    const ac = new AbortController();
+    fetchNext({}, ac.signal)
+      .then((id) => { if (id) setRevealed([id]); })
+      .catch(() => { if (!ac.signal.aborted) { setErrorKind("NETWORK"); setStatus("error"); } })
+      .finally(() => { if (!ac.signal.aborted) setLoadingNext(false); });
+    return () => ac.abort();
+  }, [adaptive, fetchNext]);
 
   const selectOption = React.useCallback(
     (option: string) => {
@@ -63,9 +97,30 @@ export function AssessmentRunner({
     [current],
   );
 
+  // Assigned below once `submit` exists; adaptive "Next" may finish the test.
+  const submitRef = React.useRef<() => Promise<void>>(async () => {});
+
   const goNext = React.useCallback(() => {
-    setIndex((i) => Math.min(total - 1, i + 1));
-  }, [total]);
+    if (!adaptive) {
+      setIndex((i) => Math.min(total - 1, i + 1));
+      return;
+    }
+    setLoadingNext(true);
+    fetchNext(answers)
+      .then((id) => {
+        if (id) {
+          setRevealed((r) => [...r, id]);
+          setIndex((i) => i + 1);
+        } else {
+          void submitRef.current();
+        }
+      })
+      .catch(() => {
+        setErrorKind("NETWORK");
+        setStatus("error");
+      })
+      .finally(() => setLoadingNext(false));
+  }, [adaptive, total, fetchNext, answers]);
 
   const goPrev = React.useCallback(() => {
     setIndex((i) => Math.max(0, i - 1));
@@ -83,6 +138,7 @@ export function AssessmentRunner({
             selectedAnswer,
           })),
           hintsUsed,
+          adaptive: Boolean(adaptive),
         }),
       });
 
@@ -104,7 +160,10 @@ export function AssessmentRunner({
       setErrorKind("NETWORK");
       setStatus("error");
     }
-  }, [assessmentId, answers, hintsUsed, resultsHref, router]);
+  }, [assessmentId, answers, hintsUsed, resultsHref, router, adaptive]);
+  React.useEffect(() => {
+    submitRef.current = submit;
+  });
 
   // Keyboard navigation — use refs to avoid re-subscribing on every answer change.
   const stateRef = React.useRef({ status, current, answers, answeredCount, total, isLast });
@@ -145,6 +204,14 @@ export function AssessmentRunner({
     );
   }
 
+  if (!current && loadingNext) {
+    return (
+      <div className="mx-auto flex max-w-lg items-center gap-2 px-6 py-16 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden /> Choosing your first question…
+      </div>
+    );
+  }
+
   if (!current) {
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-4 px-6 py-16">
@@ -161,7 +228,7 @@ export function AssessmentRunner({
             {current.domainName} · {current.competencyName}
           </span>
           <span className="tabular-mono text-xs text-muted-foreground">
-            {index + 1} / {total}
+            {adaptive ? `Question ${index + 1} of up to ${total}` : `${index + 1} / ${total}`}
           </span>
         </div>
         <Progress value={((index + 1) / total) * 100} aria-label="Assessment progress">
@@ -216,12 +283,13 @@ export function AssessmentRunner({
       </Card>
 
       <div className="flex items-center justify-between">
-        <Button variant="outline" onClick={goPrev} disabled={index === 0}>
+        <Button variant="outline" onClick={goPrev} disabled={index === 0 || Boolean(adaptive)}>
           Back
         </Button>
         <span className="text-xs text-muted-foreground">
-          {answeredCount} of {total} answered · use 1-{current.options.length} or click to
-          select, arrow keys to move
+          {adaptive
+            ? "Adaptive — each question adjusts to your previous answer"
+            : `${answeredCount} of ${total} answered · use 1-${current.options.length} or click to select, arrow keys to move`}
         </span>
         {isLast ? (
           <Button
@@ -238,8 +306,9 @@ export function AssessmentRunner({
             )}
           </Button>
         ) : (
-          <Button onClick={goNext} disabled={!selected}>
-            Next
+          <Button onClick={goNext} disabled={!selected || loadingNext || status === "submitting"}>
+            {loadingNext || status === "submitting" ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+            {adaptive && revealed.length >= total ? "Finish" : "Next"}
           </Button>
         )}
       </div>

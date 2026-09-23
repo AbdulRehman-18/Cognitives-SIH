@@ -206,6 +206,31 @@ export function hintScoreMultiplier(hintsUsed: number): number {
   return Math.max(HINT_SCORE_FLOOR, 1 - HINT_PENALTY_PER_HINT * hintsUsed);
 }
 
+/**
+ * Applies the hint penalty to a scored result: `current` and every evidence
+ * contribution are scaled by the same multiplier, so evidence rows still sum
+ * to the displayed score. Level is re-derived from the scaled score.
+ */
+export function applyHintPenalty(result: CompetencyScoreResult, hintsUsed: number): CompetencyScoreResult {
+  if (hintsUsed <= 0 || result.current === null) return result;
+  const multiplier = hintScoreMultiplier(hintsUsed);
+  const current = result.current * multiplier;
+  return {
+    ...result,
+    current,
+    level: Math.max(1, Math.min(5, Math.ceil(current / 20))),
+    evidence: result.evidence.map((e) => ({ ...e, contribution: e.contribution * multiplier })),
+  };
+}
+
+const AVG_DAYS_PER_MONTH = 30.4375;
+
+/** Whole-and-fractional months from `from` to `to` (never negative) — feeds `monthsSince`. */
+export function monthsBetween(from: Date, to: Date): number {
+  const days = (to.getTime() - from.getTime()) / 86_400_000;
+  return Math.max(0, days / AVG_DAYS_PER_MONTH);
+}
+
 export function scoreCompetency(input: ScoringInput): CompetencyScoreResult {
   const assessmentScore = computeAssessmentScore(input.assessmentAnswers);
   const priorTrainingScore = computePriorTrainingScore(input.priorTrainings);

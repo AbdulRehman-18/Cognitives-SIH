@@ -13,6 +13,7 @@ export function StartDiagnostic() {
   const router = useRouter();
   const [status, setStatus] = React.useState<Status>("idle");
   const [errorKind, setErrorKind] = React.useState<AiErrorKind>("NETWORK");
+  const [adaptive, setAdaptive] = React.useState(true);
 
   const handleStart = React.useCallback(async () => {
     setStatus("generating");
@@ -20,7 +21,9 @@ export function StartDiagnostic() {
       const res = await fetch("/api/assessments/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionsPerCompetency: 2 }),
+        // Adaptive runs draw ~3 items per competency from a pool of 4 spread
+        // across difficulties; the fixed form uses 2 per competency.
+        body: JSON.stringify({ questionsPerCompetency: adaptive ? 4 : 2 }),
       });
 
       if (!res.ok) {
@@ -31,12 +34,12 @@ export function StartDiagnostic() {
       }
 
       const data = (await res.json()) as { assessmentId: string };
-      router.push(`/assessment/${data.assessmentId}`);
+      router.push(`/assessment/${data.assessmentId}${adaptive ? "?mode=adaptive" : ""}`);
     } catch {
       setErrorKind("NETWORK");
       setStatus("error");
     }
-  }, [router]);
+  }, [router, adaptive]);
 
   if (status === "error") {
     return <AiErrorState kind={errorKind} onRetry={handleStart} />;
@@ -50,6 +53,13 @@ export function StartDiagnostic() {
           heavily. Scoring is computed by a fixed formula from your answers —
           never by the AI.
         </p>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={adaptive} onChange={(e) => setAdaptive(e.target.checked)} className="mt-0.5" />
+          <span>
+            Adaptive diagnostic
+            <span className="block text-xs text-muted-foreground">Each next question gets harder after a correct answer and easier after a miss — fewer questions for a sharper estimate.</span>
+          </span>
+        </label>
         <Button onClick={handleStart} disabled={status === "generating"} className="w-fit">
           {status === "generating" ? (
             <>

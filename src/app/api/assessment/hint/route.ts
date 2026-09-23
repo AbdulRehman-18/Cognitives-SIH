@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
    const reasoning = plannerReasoning(hintsAlreadyGiven);
 
    const priorHints = await db.hintRequest.findMany({ where: { userId: session.user.id, questionId }, orderBy: { timestamp: "asc" }, take: 4 });
-  const conversation = priorHints.map((h: any)=>`Tier ${h.tier}: ${h.guideResponseText}`).join("\n");
+  const conversation = priorHints.map((h) =>`Tier ${h.tier}: ${h.guideResponseText}`).join("\n");
 
   // Streaming path: stream Guide tokens directly (matches Tutor streaming feel)
   if (stream) {

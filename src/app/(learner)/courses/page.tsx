@@ -5,10 +5,18 @@ import { ReasonBreakdown, type ReasonFactor } from "@/components/caliper/reason-
 import { loadRecommendations } from "@/lib/recommendations/load-recommendations";
 import { RECOMMENDATION_WEIGHTS } from "@/lib/engines/recommendation";
 import { Breadcrumbs, BreadcrumbItem } from "@astryxdesign/core/Breadcrumbs";
+import { IgotCourseAction } from "@/components/igot/igot-course-action";
+import { igotMode } from "@/lib/igot";
+import { loadCourseIgotState } from "@/lib/igot/progress";
 
 export default async function CoursesPage() {
   const session = await requireRole("LEARNER");
   const data = await loadRecommendations(session.user.id);
+  const igotState = await loadCourseIgotState(
+    session.user.id,
+    (data?.gaps ?? []).flatMap((g) => g.recommendations.map((r) => r.courseId)),
+  );
+  const mockMode = igotMode() === "mock";
 
   return (
     <>
@@ -87,9 +95,16 @@ export default async function CoursesPage() {
                             </div>
                             {rec.isClosestMatch && <p className="text-[11px] leading-[1.5] text-muted-foreground border border-dashed border-[color:var(--color-border-resting)] rounded-[8px] px-[10px] py-[6px]">Nearest available — catalog coverage still growing.</p>}
                             <ReasonBreakdown factors={factors} score={rec.score} />
+                            <IgotCourseAction
+                              courseId={rec.courseId}
+                              source={rec.source}
+                              synced={igotState.get(rec.courseId)?.synced ?? false}
+                              progress={igotState.get(rec.courseId)?.progress ?? null}
+                              mockMode={mockMode}
+                            />
                           </div>
                           <div className="flex items-center justify-between border-t border-[color:var(--color-border-resting)] px-[16px] py-[10px] mt-auto">
-                            <span className="text-[11px] tabular-mono text-muted-foreground/70">{rec.durationHours}h · Ready to enroll</span>
+                            <span className="text-[11px] tabular-mono text-muted-foreground/70">{rec.durationHours}h · {rec.source === "IGOT" ? "on iGOT Karmayogi" : "NSSTA calendar"}</span>
                             {rec.externalUrl ? (
                               <Link href={rec.externalUrl} target="_blank" className="text-[12px] font-medium tracking-[-0.01em] underline underline-offset-4 decoration-zinc-300 hover:decoration-foreground transition">
                                 Open <span aria-hidden>→</span>

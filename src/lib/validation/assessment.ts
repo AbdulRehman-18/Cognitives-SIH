@@ -46,6 +46,8 @@ export type GenerateDiagnosticRequest = z.infer<typeof generateDiagnosticRequest
 // ── Submission-side validation ──────────────────────────────────────────────
 
 export const submitAssessmentSchema = z.object({
+  /** Adaptive diagnostics submit only the items the learner was shown. */
+  adaptive: z.boolean().optional(),
   hintsUsed: z.record(z.string(), z.number().int().min(0).max(4)).optional(),
   answers: z
     .array(

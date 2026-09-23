@@ -28,6 +28,8 @@ export interface GenerateMcqParams {
   difficultyHint?: DifficultyHint;
   /** Retrieved chunks, in the exact order the model must cite by index. */
   chunks: RetrievedChunk[];
+  /** Language for stems, options and explanations (default English). */
+  language?: "en" | "hi";
 }
 
 const DIFFICULTY_GUIDANCE: Record<DifficultyHint, string> = {
@@ -60,7 +62,11 @@ Requirements for every question:
 - "difficulty" is a number from 0 (introductory recall) to 1 (expert-level application) describing how hard the QUESTION is — a property of the question, never a judgment about any person.
 - ${difficultyLine}
 - "explanation" briefly states why the correct answer is right, referencing the source chunk's content.
-- Do not include any numeric score, rating, or competency-level judgment anywhere in your output — you are writing questions only.`;
+- Do not include any numeric score, rating, or competency-level judgment anywhere in your output — you are writing questions only.${
+    params.language === "hi"
+      ? "\n- Write every stem, option and explanation in formal Hindi (Devanagari script), even though the source chunks may be in English. Keep standard statistical terms and abbreviations (e.g. CPI, GDP) as they are. \"correctAnswer\" must still be copied verbatim from the Hindi options."
+      : ""
+  }`;
 }
 
 const SYSTEM_PROMPT = `You are an assessment-design assistant for SkillForge AI, a competency measurement platform for India's official statistical system. You write assessment QUESTIONS ONLY, grounded strictly in the source material you are given — never from general knowledge, and never inventing facts. You never assign scores, competency levels, or relevance judgments — those are computed separately by deterministic code. Follow the requested JSON schema exactly.`;

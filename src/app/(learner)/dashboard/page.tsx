@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { DomainMatrix } from "@/components/caliper/domain-matrix";
 import { buttonVariants } from "@/components/ui/button";
+import { getDictionary } from "@/i18n/server";
 
 // Small inline chart helpers — no external deps
 function ReadinessRing({ pct, label }: { pct: number; label: string }) {
@@ -68,14 +69,30 @@ export default async function LearnerDashboardPage() {
   const session = await requireRole("LEARNER");
   const user = await db.user.findUnique({ where: { id: session.user.id }, select: { roleId: true, jobRole: true, name: true } });
   if (!user?.roleId || !user.jobRole) redirect("/onboarding");
+  const { t } = await getDictionary();
 
-  const [domains, userCompetencies, gaps, quizAttempts] = await Promise.all([
+  const [domains, userCompetencies, gaps, quizAttempts, learning] = await Promise.all([
     db.domain.findMany({ include: { _count: { select: { competencies: true } } } }),
     db.userCompetency.findMany({ where: { userId: session.user.id }, include: { competency: { select: { domainId: true } } } }),
     db.skillGap.findMany({ where: { userId: session.user.id }, orderBy: [{ severity: "asc" }, { priorityScore: "desc" }], take: 6, include: { competency: { select: { name: true, domainId: true } } } }),
-    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 3, include: { assessment: { select: { competencies: true } } } }),
+    db.quizAttempt.findMany({ where: { userId: session.user.id }, orderBy: { startedAt: "desc" }, take: 3, include: { assessment: { select: { competencies: true, type: true } } } }),
+    db.learningProgress.findMany({
+      where: { userId: session.user.id, courseId: { not: null } },
+      include: { course: { select: { title: true, durationHours: true } } },
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
-  const assessments = quizAttempts.map((q) => ({ id: q.id, status: q.submittedAt ? "COMPLETED" : "IN_PROGRESS" as const, createdAt: q.startedAt, title: `Diagnostic · ${q.assessment.competencies.length} competencies` }));
+  const ASSESSMENT_LABEL: Record<string, string> = { DIAGNOSTIC: "Diagnostic", STANDARD: "Trainer assessment", POST_LEARNING: "Post-learning check", SELF_EVAL: "Self-evaluation quiz" };
+  const assessments = quizAttempts.map((q) => ({ id: q.id, status: q.submittedAt ? "COMPLETED" : "IN_PROGRESS" as const, createdAt: q.startedAt, title: `${ASSESSMENT_LABEL[q.assessment.type] ?? "Assessment"} · ${q.assessment.competencies.length} competencies` }));
+
+  // Learning hours come only from iGOT-synced progress: full course hours for
+  // completions, pro-rated hours for courses in progress.
+  const completedCourses = learning.filter((l) => l.status === "COMPLETED");
+  const activeCourses = learning.filter((l) => l.status !== "COMPLETED");
+  const courseHours = (l: (typeof learning)[number]) => Number(l.course?.durationHours ?? 0);
+  const learningHours =
+    completedCourses.reduce((sum, l) => sum + courseHours(l), 0) +
+    activeCourses.reduce((sum, l) => sum + courseHours(l) * (Number(l.progressPct) / 100), 0);
 
   const ucByDomain = new Map<string, { scores: number[]; assessed: number }>();
   for (const d of domains) ucByDomain.set(d.id, { scores: [], assessed: 0 });
@@ -109,9 +126,9 @@ export default async function LearnerDashboardPage() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-[16px]">
           <div>
-            <p className="text-eyebrow text-[11px] tracking-[0.14em] text-[color:var(--color-accent)]">Overview</p>
-            <h1 className="text-[28px] md:text-[32px] font-[650] tracking-[-0.03em] leading-[1.05] mt-[6px]">Your competency snapshot</h1>
-            <p className="text-body text-muted-foreground mt-[6px] max-w-[60ch]">Measured ranges across the four-domain framework. <span className="text-foreground font-medium">{totalAssessed}/{totalComp} competencies measured</span> — this is a partial picture until you assess the rest.</p>
+            <p className="text-eyebrow text-[11px] tracking-[0.14em] text-[color:var(--color-accent)]">{t.dashboard.eyebrow}</p>
+            <h1 className="text-[28px] md:text-[32px] font-[650] tracking-[-0.03em] leading-[1.05] mt-[6px]">{t.dashboard.title}</h1>
+            <p className="text-body text-muted-foreground mt-[6px] max-w-[60ch]"><span className="text-foreground font-medium">{t.dashboard.measured(totalAssessed, totalComp)}</span> · {t.dashboard.partial}</p>
           </div>
           {nextGap ? (
             <Link href="/gaps" className="inline-flex items-center gap-[8px] rounded-full bg-[color:var(--color-accent)] text-white px-[18px] py-[10px] text-small font-medium shadow-[var(--shadow-cta)] hover:brightness-[1.05] transition">
@@ -160,7 +177,7 @@ export default async function LearnerDashboardPage() {
             <div className="rounded-[20px] bg-[#1A1A1A] text-white p-[20px] flex flex-col gap-[10px] shadow-[var(--shadow-card)]">
               <p className="text-[11px] tracking-[0.12em] uppercase font-semibold opacity-60">Urgency</p>
               <p className="text-[18px] font-semibold leading-tight">{critical.length ? `${critical.length} critical gap${critical.length > 1 ? "s" : ""} blocking readiness` : "No critical gaps — focus on depth"}</p>
-              <p className="text-small opacity-70 leading-relaxed">{critical.length ? "Close Sampling and Survey Design first — they carry the highest priority score for your role." : "You’re close. One more assessment will sharpen the estimate."}</p>
+              <p className="text-small opacity-70 leading-relaxed">{critical.length ? `Close ${critical.slice(0, 2).map((g) => g.competency.name).join(" and ")} first — ${critical.length > 1 ? "they carry" : "it carries"} the highest priority score for your role.` : "You’re close. One more assessment will sharpen the estimate."}</p>
               <Link href="/gaps" className="mt-[8px] inline-flex w-fit rounded-full bg-[color:var(--color-surface-1)] text-[#111] px-[14px] py-[8px] text-small font-medium">View prioritized gaps →</Link>
             </div>
           </div>
@@ -175,7 +192,7 @@ export default async function LearnerDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-[16px]">
           <div className="lg:col-span-8 rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] shadow-[var(--shadow-card)] overflow-hidden">
             <div className="flex items-center justify-between px-[20px] py-[14px] border-b border-[color:var(--color-border-resting)]">
-              <h2 className="text-small font-semibold uppercase tracking-wide">Top gaps</h2>
+              <h2 className="text-small font-semibold uppercase tracking-wide">{t.dashboard.topGaps}</h2>
               <Link href="/gaps" className="text-small font-medium text-[color:var(--color-accent)] hover:underline underline-offset-4">View all gaps →</Link>
             </div>
             {gaps.length ? (
@@ -197,23 +214,44 @@ export default async function LearnerDashboardPage() {
 
           <div className="lg:col-span-4 flex flex-col gap-[16px]">
             <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] shadow-[var(--shadow-card)]">
-              <h2 className="text-small font-semibold">Momentum</h2>
-              <div className="mt-[12px] flex items-end gap-[6px] h-[48px]">
-                {[18, 34, 22, 40, 28, 46, readiness].map((v, i) => (
-                  <div key={i} className="flex-1 rounded-[6px] bg-[color:var(--color-accent)]" style={{ height: `${Math.max(8, v * 0.9)}%`, opacity: 0.25 + (i / 7) * 0.75 }} />
-                ))}
+              <div className="flex items-baseline justify-between gap-[8px]">
+                <h2 className="text-small font-semibold">{t.dashboard.learningTitle}</h2>
+                <Link href="/path" className="text-[12px] font-medium text-[color:var(--color-accent)] hover:underline underline-offset-4">Path →</Link>
               </div>
-              <p className="text-[11px] tabular-mono text-muted-foreground mt-[10px]">Readiness last 7 assessments</p>
-              <div className="mt-[12px] grid grid-cols-2 gap-[10px]">
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] px-[12px] py-[10px]">
-                  <p className="num text-[18px] font-semibold leading-none">{totalAssessed}</p>
-                  <p className="text-[11px] text-muted-foreground tabular-mono">assessed</p>
+              <div className="mt-[12px] grid grid-cols-3 gap-[8px]">
+                <div className="rounded-[12px] bg-[color:var(--color-canvas)] px-[10px] py-[10px]">
+                  <p className="num text-[18px] font-semibold leading-none">{learningHours.toFixed(1)}</p>
+                  <p className="text-[11px] text-muted-foreground tabular-mono mt-[4px]">{t.dashboard.learningHours}</p>
                 </div>
-                <div className="rounded-[12px] bg-[color:var(--color-canvas)] px-[12px] py-[10px]">
-                  <p className="num text-[18px] font-semibold leading-none">{assessments.length}</p>
-                  <p className="text-[11px] text-muted-foreground tabular-mono">recent tests</p>
+                <div className="rounded-[12px] bg-[color:var(--color-canvas)] px-[10px] py-[10px]">
+                  <p className="num text-[18px] font-semibold leading-none">{activeCourses.length}</p>
+                  <p className="text-[11px] text-muted-foreground tabular-mono mt-[4px]">{t.dashboard.inProgress}</p>
+                </div>
+                <div className="rounded-[12px] bg-[color:var(--color-canvas)] px-[10px] py-[10px]">
+                  <p className="num text-[18px] font-semibold leading-none">{completedCourses.length}</p>
+                  <p className="text-[11px] text-muted-foreground tabular-mono mt-[4px]">{t.dashboard.completed}</p>
                 </div>
               </div>
+              {learning.length ? (
+                <ul className="mt-[12px] flex flex-col gap-[10px]">
+                  {learning.slice(0, 3).map((l) => {
+                    const pct = Math.round(Number(l.progressPct));
+                    return (
+                      <li key={l.id}>
+                        <p className="text-[12px] font-medium truncate">{l.course?.title}</p>
+                        <div className="mt-[4px] flex items-center gap-[8px]">
+                          <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-[color:var(--color-border-resting)]">
+                            <div className="h-full rounded-full bg-[color:var(--color-accent)]" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[11px] tabular-mono text-muted-foreground">{l.status === "COMPLETED" ? "Done" : `${pct}%`}</span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-[12px] text-muted-foreground mt-[12px]">No iGOT enrolments yet — enrol from your learning path to start logging hours.</p>
+              )}
             </div>
             <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] shadow-[var(--shadow-card)]">
               <h2 className="text-small font-semibold">Recent activity</h2>

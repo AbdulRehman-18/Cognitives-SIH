@@ -1,6 +1,8 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { TutorChat } from "./tutor-chat";
 import { db } from "@/lib/db/client";
+import { MyMaterials } from "@/components/learner/my-materials";
+import { getDictionary } from "@/i18n/server";
 
 export default async function TutorPage() {
   const session = await requireRole("LEARNER");
@@ -14,6 +16,12 @@ export default async function TutorPage() {
     gaps = rows.map((r) => ({ name: r.competency.name, severity: r.severity }));
     pathWeeks = path ? Math.ceil(path.items.length / 2) : 0;
   } catch {}
+  const personalDocuments = await db.document.findMany({
+    where: { ownerId: session.user.id, scope: "PERSONAL" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, fileName: true, processingStatus: true, chunkCount: true, createdAt: true },
+  });
+  const { t } = await getDictionary();
   const firstName = session.user.name?.split(" ")[0] ?? "Officer";
 
   return (
@@ -23,11 +31,11 @@ export default async function TutorPage() {
           <div>
             <div className="flex items-center gap-[10px]">
               <span className="size-8 rounded-[10px] bg-[color:var(--color-accent)] text-white grid place-items-center"> <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden><path d="M10 3.5l2.2 2.2 3.3-.2-.2 3.3-2.2 2.2-2.2-2.2-.2-3.3 3.3.2-2.2-2.2Z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="10" cy="14.5" r="1.4" fill="white"/></svg></span>
-              <h1 className="text-[24px] font-[650] tracking-[-0.02em]">Tutor</h1>
+              <h1 className="text-[24px] font-[650] tracking-[-0.02em]">{t.tutor.title}</h1>
               <span className="rounded-full bg-[#12B76A]/10 text-[#0E7A4B] border border-[#12B76A]/20 px-[10px] py-[4px] text-[11px] font-semibold tracking-wide">GROUNDED</span>
               <span className="hidden md:inline-flex rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[10px] py-[4px] text-[11px] tabular-mono text-muted-foreground">Synced to {gaps.length} gaps · {pathWeeks ? `${pathWeeks} weeks path` : "no path yet"}</span>
             </div>
-            <p className="text-body text-muted-foreground mt-[8px] max-w-[68ch]">Hey {firstName} — your measurement-aware tutor. It retrieves only from trainer-uploaded material, cites every claim, and calibrates to your gaps. <span className="text-foreground font-medium">Out-of-scope = declined, never guessed.</span></p>
+            <p className="text-body text-muted-foreground mt-[8px] max-w-[68ch]">{t.tutor.intro(firstName)} <span className="text-foreground font-medium">{t.tutor.outOfScope}</span></p>
           </div>
           <div className="hidden lg:flex items-center gap-[10px] rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[14px] py-[8px] shadow-sm">
             <span className="size-2 rounded-full bg-[#12B76A] animate-pulse" />
@@ -48,6 +56,8 @@ export default async function TutorPage() {
         ) : null}
 
         <TutorChat initialGaps={gaps.map((g) => g.name)} />
+
+        <MyMaterials initialDocuments={personalDocuments.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))} />
       </div>
     </>
   );

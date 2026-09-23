@@ -14,3 +14,14 @@ export function formatDate(value: Date | string | number): string {
 export function formatDateTime(value: Date | string | number): string {
   return dateTimeFmt.format(new Date(value));
 }
+
+/** Short human label for a stored document MIME type. */
+export function documentTypeLabel(type: string): string {
+  if (type.includes("pdf")) return "PDF";
+  if (type.includes("wordprocessing")) return "DOCX";
+  if (type.includes("presentation")) return "PPTX";
+  if (type.startsWith("video/")) return "Video";
+  if (type.startsWith("audio/")) return "Audio";
+  if (type.startsWith("text/") || type.includes("subrip")) return "Transcript";
+  return type;
+}

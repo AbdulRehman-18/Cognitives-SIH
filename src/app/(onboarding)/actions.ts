@@ -3,7 +3,15 @@
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { onboardingSchema } from "@/lib/validation/onboarding";
+import { onboardingSchema, parsePriorTrainingsField } from "@/lib/validation/onboarding";
+import {
+  addPriorTrainings,
+  formatEducation,
+  importIgotHistory,
+  recomputeForTaggedCompetencies,
+  refreshProfileCompleteness,
+} from "@/lib/profile/training-records";
+
 
 export interface OnboardingActionState {
   error?: string;
@@ -19,10 +27,18 @@ export async function completeOnboardingAction(
     designation: formData.get("designation"),
     departmentId: formData.get("departmentId"),
     roleId: formData.get("roleId"),
+    education: formData.get("education") ?? "",
+    educationField: formData.get("educationField") ?? "",
+    yearsExperience: formData.get("yearsExperience") ?? "",
+    currentAssignment: formData.get("currentAssignment") ?? "",
+    priorTrainings: parsePriorTrainingsField(formData.get("priorTrainings")),
+    importIgot: formData.get("importIgot") === "on",
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    const issue = parsed.error.issues[0];
+    const where = issue?.path[0] === "priorTrainings" ? `Training ${Number(issue.path[1] ?? 0) + 1}: ` : "";
+    return { error: `${where}${issue?.message ?? "Invalid input"}` };
   }
 
   const [department, role] = await Promise.all([
@@ -64,7 +80,9 @@ export async function completeOnboardingAction(
         designation: parsed.data.designation,
         department: department.name,
         jobRole: role.name,
-        completeness: 100,
+        education: formatEducation(parsed.data.education, parsed.data.educationField),
+        yearsExperience: parsed.data.yearsExperience ?? null,
+        currentAssignment: parsed.data.currentAssignment ?? null,
         history: {
           create: changes.map(({ field, oldValue, newValue }) => ({
             field,
@@ -80,10 +98,31 @@ export async function completeOnboardingAction(
         action: "ONBOARDING_COMPLETED",
         resourceType: "OfficerProfile",
         resourceId: profile.id,
-        metadataJson: { department: department.name, jobRole: role.name },
+        metadataJson: {
+          department: department.name,
+          jobRole: role.name,
+          priorTrainings: parsed.data.priorTrainings.length,
+          igotImport: parsed.data.importIgot,
+        },
       },
     }),
   ]);
+
+  // Training history feeds the Competency Engine's priorTraining term. The
+  // iGOT import needs the role saved above (the mock derives history from it).
+  await addPriorTrainings(session.user.id, parsed.data.priorTrainings);
+  const tagged = parsed.data.priorTrainings.flatMap((t) => t.competencyIds);
+  if (parsed.data.importIgot) {
+    try {
+      tagged.push(...(await importIgotHistory(session.user.id)).competencyIds);
+    } catch (error) {
+      // iGOT being unreachable must not block onboarding — the officer can
+      // import later from their profile.
+      console.error("[onboarding] iGOT history import failed", error);
+    }
+  }
+  await recomputeForTaggedCompetencies(session.user.id, tagged);
+  await refreshProfileCompleteness(session.user.id);
 
   // PRD §5.4: onboarding is diagnostic, not a dead-end form. Route straight
   // into the single-domain diagnostic instead of a full dashboard so the

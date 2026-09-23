@@ -7,6 +7,7 @@ import { signIn } from "@/lib/auth";
 import { db } from "@/lib/db/client";
 import { defaultRouteForRole } from "@/lib/auth/rbac";
 import { signInSchema, signUpSchema } from "@/lib/validation/auth";
+import { enabledSsoProviders } from "@/lib/auth/sso";
 
 export interface AuthActionState {
   error?: string;
@@ -94,4 +95,12 @@ export async function signUpAction(
   }
 
   redirect("/onboarding");
+}
+
+/** Starts an SSO sign-in; the provider id must be one currently enabled. */
+export async function ssoSignInAction(formData: FormData): Promise<void> {
+  const provider = String(formData.get("provider") ?? "");
+  if (!enabledSsoProviders().some((p) => p.id === provider)) redirect("/sign-in?error=Configuration");
+  // "/" routes by role; learners without a job role land on onboarding.
+  await signIn(provider, { redirectTo: "/" });
 }

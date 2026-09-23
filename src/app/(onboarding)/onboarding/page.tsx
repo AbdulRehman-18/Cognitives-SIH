@@ -22,10 +22,16 @@ export default async function OnboardingPage() {
     redirect("/dashboard");
   }
 
-  const [departments, roles] = await Promise.all([
+  const [departments, roles, competencies] = await Promise.all([
     db.department.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     db.role.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.competency.findMany({
+      orderBy: [{ domain: { name: "asc" } }, { name: "asc" }],
+      select: { id: true, name: true, domain: { select: { name: true } } },
+    }),
   ]);
+  const now = new Date();
+  const maxMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
   return (
     <div className="flex min-h-full flex-col bg-bg">
@@ -40,11 +46,13 @@ export default async function OnboardingPage() {
         </div>
         <ThemeToggle />
       </header>
-      <main className="flex flex-1 items-center justify-center px-4 pb-16">
+      <main className="flex flex-1 items-start justify-center px-4 pb-16 pt-4">
         <OnboardingForm
           firstName={user?.name?.split(" ")[0]}
           departments={departments}
           roles={roles}
+          competencies={competencies.map((c) => ({ id: c.id, name: c.name, domainName: c.domain.name }))}
+          maxMonth={maxMonth}
         />
       </main>
     </div>

@@ -1,6 +1,9 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import Link from "next/link";
+import { igotMode } from "@/lib/igot";
+import { formatDateTime } from "@/lib/format";
+import { IgotSyncButton } from "./igot-sync-button";
 
 function Toggle({ checked }: { checked?: boolean }) {
   return <span className={`relative inline-flex h-[22px] w-[38px] items-center rounded-full border transition ${checked ? "bg-[#2E3AFF] border-[#2E3AFF]" : "bg-[color:var(--color-surface-1)] border-[color:var(--color-border-resting)]"}`}><span className={`inline-block size-[16px] rounded-full bg-[color:var(--color-surface-1)] shadow-sm transition ${checked ? "translate-x-[18px]" : "translate-x-[2px]"}`} /></span>;
@@ -8,7 +11,16 @@ function Toggle({ checked }: { checked?: boolean }) {
 
 export default async function AdminSettingsPage() {
   await requireRole("ADMIN");
-  const [deptCount, roleCount] = await Promise.all([db.department.count(), db.role.count()]);
+  const [deptCount, roleCount, igotCourseCount, syncedCount, lastSync, enrolmentCount] = await Promise.all([
+    db.department.count(),
+    db.role.count(),
+    db.course.count({ where: { source: "IGOT" } }),
+    db.course.count({ where: { source: "IGOT", externalId: { not: null } } }),
+    db.course.aggregate({ _max: { lastSyncedAt: true } }),
+    db.learningProgress.count({ where: { externalEnrolmentId: { not: null } } }),
+  ]);
+  const mode = igotMode();
+  const lastSyncedAt = lastSync._max.lastSyncedAt;
 
   return (
     <>
@@ -22,7 +34,8 @@ export default async function AdminSettingsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-[16px]">
           <nav className="lg:col-span-3 lg:sticky lg:top-[24px] h-fit rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[8px] flex lg:flex-col gap-[4px] overflow-x-auto">
             {[
-              { id: "org", label: "Organization", active: true },
+              { id: "igot", label: "iGOT", active: true },
+              { id: "org", label: "Organization" },
               { id: "alerts", label: "Alerts" },
               { id: "access", label: "Access" },
               { id: "data", label: "Data" },
@@ -32,6 +45,34 @@ export default async function AdminSettingsPage() {
           </nav>
 
           <div className="lg:col-span-9 flex flex-col gap-[16px]">
+            <section id="igot" className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
+              <div className="flex flex-wrap items-start justify-between gap-[12px]">
+                <div>
+                  <h2 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Integrations</h2>
+                  <h3 className="text-[16px] font-[650] mt-[4px]">iGOT Karmayogi</h3>
+                  <p className="text-[12px] text-muted-foreground mt-[4px] max-w-[60ch]">Course catalogue, enrolments and completions. Completions sync nightly and on demand, and feed competency scores as evidence.</p>
+                </div>
+                <span className={`rounded-full border px-[10px] py-[4px] text-[11px] font-semibold ${mode === "live" ? "bg-[#F0FDF4] text-[#0E7A4B] border-[#BBF7D0]" : "bg-[#FFFBEB] text-[#92400E] border-[#FDE68A]"}`}>
+                  {mode === "live" ? "Live API" : "Mock mode — simulated iGOT"}
+                </span>
+              </div>
+              <div className="mt-[12px] grid grid-cols-3 gap-[10px]">
+                {[
+                  { k: "iGOT courses", v: `${syncedCount}/${igotCourseCount} synced` },
+                  { k: "Last catalog sync", v: lastSyncedAt ? formatDateTime(lastSyncedAt) : "Never" },
+                  { k: "Tracked enrolments", v: String(enrolmentCount) },
+                ].map((m) => (
+                  <div key={m.k} className="rounded-[12px] border border-[color:var(--color-border-resting)] px-[12px] py-[10px]">
+                    <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">{m.k}</p>
+                    <p className="text-[13px] font-medium mt-[4px] tabular-mono">{m.v}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-[12px]">
+                <IgotSyncButton />
+              </div>
+            </section>
+
             <section id="org" className="rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[18px]">
               <h2 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">Organization</h2>
               <h3 className="text-[16px] font-[650] mt-[4px]">Structure</h3>

@@ -39,7 +39,7 @@ export function DocumentUpload({ onUploaded }: { onUploaded?: () => void }) {
         }}
         content={{
           button: "Upload document",
-          allowedContent: "PDF, DOCX, or PPTX",
+          allowedContent: "PDF, DOCX, PPTX, audio/video, or transcript",
         }}
       />
       {error ? <p className="text-xs text-[color:var(--color-critical)]">{error}</p> : null}

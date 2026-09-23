@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type TutorMode = "explain" | "guide" | "quiz";
-interface Citation { id: string; documentId: string; chunkIndex: number; content: string; similarity: number; }
+interface Citation { id: string; documentId: string; chunkIndex: number; content: string; similarity: number; documentTitle?: string; }
 interface ChatMessage { role: "user" | "assistant"; content: string; citations?: Citation[]; refused?: boolean; }
 
 const STARTERS = [
@@ -22,6 +22,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<TutorMode>("explain");
+  const [language, setLanguage] = useState<"en" | "hi">("en");
   const [streaming, setStreaming] = useState(false);
   const [errorKind, setErrorKind] = useState<AiErrorKind | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -55,7 +56,7 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
     const next = [...messages, { role: "user", content } as ChatMessage];
     setMessages(next); setInput(""); setStreaming(true); setErrorKind(null);
     try {
-      const res = await fetch("/api/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next, mode }) });
+      const res = await fetch("/api/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next, mode, language }) });
       if (!res.ok) { const body = await res.json().catch(() => null); setErrorKind((body?.kind ?? "NETWORK") as AiErrorKind); setStreaming(false); return; }
       const reader = res.body?.getReader(); if (!reader) throw new Error("No body");
       const decoder = new TextDecoder();
@@ -91,6 +92,13 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
             {(["explain", "guide", "quiz"] as TutorMode[]).map((m) => (
               <button key={m} onClick={() => setMode(m)} className={cn("rounded-full px-[14px] py-[7px] text-[12px] font-semibold tracking-wide capitalize transition", mode === m ? "bg-[color:var(--color-accent)] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}>
                 {m === "explain" ? "Explain" : m === "guide" ? "Guide me" : "Quiz me"}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-full border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[3px]" role="group" aria-label="Answer language">
+            {(["en", "hi"] as const).map((l) => (
+              <button key={l} type="button" onClick={() => setLanguage(l)} aria-pressed={language === l} className={cn("rounded-full px-[10px] py-[5px] text-[12px] font-semibold transition", language === l ? "bg-[color:var(--color-ink)] text-[color:var(--color-canvas)]" : "text-muted-foreground hover:text-foreground")}>
+                {l === "en" ? "EN" : "हिंदी"}
               </button>
             ))}
           </div>
@@ -130,10 +138,10 @@ export function TutorChat({ initialGaps }: { initialGaps?: string[] }) {
               {m.role === "assistant" && m.citations && m.citations.length > 0 && (
                 <div className="mt-[12px] flex flex-col gap-[8px]">
                   <p className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Cited chunks</p>
-                  {m.citations.map((c) => <SourceChunkCard key={c.id} chunkIndex={c.chunkIndex} content={c.content} similarity={c.similarity} />)}
+                  {m.citations.map((c) => <SourceChunkCard key={c.id} chunkIndex={c.chunkIndex} content={c.content} similarity={c.similarity} documentTitle={c.documentTitle} />)}
                 </div>
               )}
-              {m.role === "assistant" && m.refused && <p className="mt-[8px] text-[12px] italic opacity-80 bg-[#FFF4ED] border border-[#FDBA74]/30 rounded-[8px] px-[10px] py-[8px] text-[#9C4221]">Outside uploaded material — the tutor declined to guess. Ask your trainer to add the relevant document.</p>}
+              {m.role === "assistant" && m.refused && <p className="mt-[8px] text-[12px] italic opacity-80 bg-[#FFF4ED] border border-[#FDBA74]/30 rounded-[8px] px-[10px] py-[8px] text-[#9C4221]">Outside the available material — the tutor declined to guess. Upload your own notes below, or ask your trainer to add the relevant document.</p>}
             </div>
           ))}
           {streaming && <div className="self-start flex items-center gap-[8px] text-[12px] tabular-mono text-muted-foreground"><span className="size-2 rounded-full bg-[color:var(--color-accent)] animate-pulse" /> Tutor is retrieving & drafting with citations…</div>}
