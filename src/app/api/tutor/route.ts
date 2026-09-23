@@ -7,13 +7,13 @@ import { classifyAiError } from "@/lib/ai/errors";
 import { getAiProvider } from "@/lib/ai/provider";
 import {
   buildTutorSystemPrompt,
-  buildDemoTutorSystemPrompt,
   describeLearnerLevel,
-  languageInstruction,
+  isGenericOffTopic,
+  tutorBasis,
   tutorRefusalMessage,
+  OUT_OF_SCOPE_SENTINEL,
   TUTOR_RETRIEVAL_K,
   TUTOR_REFUSAL_THRESHOLD,
-  TUTOR_DEMO_MODE,
   type TutorCitation,
   type TutorLanguage,
 } from "@/lib/tutor/tutor";
@@ -21,13 +21,14 @@ import {
 // AI Tutor streaming route — src/app/api/tutor/route.ts
 //
 // Retrieval BEFORE generation, always (reusing Phase 4's shared retrieval
-// path). Refusal rule (PRD §4.9): top similarity < TUTOR_REFUSAL_THRESHOLD ⇒
-// a DETERMINISTIC out-of-scope response streamed without any model call.
-// Grounded or explicitly silent — never guessing.
+// path). The top similarity decides the answer's basis — material, blended
+// or general — before any model call, and the client labels it. Off-topic
+// questions get a deterministic refusal: obvious chit-chat without a model
+// call, anything else when the model answers with OUT_OF_SCOPE_SENTINEL.
 //
 // Wire protocol: the response body starts with a single-line JSON header
-// (`{"refused":bool,"citations":[…]}`) followed by a blank line, then raw
-// text deltas. The client parses the header once, then appends deltas.
+// (`{"refused":bool,"basis":…,"citations":[…]}`) followed by a blank line,
+// then raw text deltas. The client parses the header once, then appends deltas.
 
 export const maxDuration = 60;
 
@@ -79,28 +80,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
   }
 
-  const refused =
-    chunks.length === 0 || !chunks.some((chunk) => chunk.similarity >= TUTOR_REFUSAL_THRESHOLD);
-
-  // ── DEMO MODE: bypass document grounding, answer from model knowledge ──
-  // Keeps guardrail against generic off-topic (time, celebrities, etc.)
-  if (TUTOR_DEMO_MODE && refused) {
-    return demoResponse(parsed.data.messages, parsed.data.mode, session.user.id, parsed.data.language);
-  }
-
-  // Deterministic refusal — no model call at all when out of scope.
-  if (refused) {
+  if (isGenericOffTopic(question)) {
     return refusalResponse(parsed.data.language);
   }
 
-  const groundedChunks = chunks.filter((chunk) => chunk.similarity >= TUTOR_REFUSAL_THRESHOLD);
+  const topSimilarity = chunks.length ? Math.max(...chunks.map((c) => c.similarity)) : null;
+  const basis = tutorBasis(topSimilarity);
+  const groundedChunks = basis === "general" ? [] : chunks.filter((chunk) => chunk.similarity >= TUTOR_REFUSAL_THRESHOLD);
 
   // Attach document titles so citations render honestly in SourceChunkCard.
   const documentIds = [...new Set(groundedChunks.map((c) => c.documentId))];
-  const documents = await db.document.findMany({
-    where: { id: { in: documentIds } },
-    select: { id: true, fileName: true, scope: true },
-  });
+  const documents = documentIds.length
+    ? await db.document.findMany({
+        where: { id: { in: documentIds } },
+        select: { id: true, fileName: true, scope: true },
+      })
+    : [];
   const documentTitle = new Map(
     documents.map((d) => [d.id, `${d.fileName ?? "Course document"}${d.scope === "PERSONAL" ? " (your upload)" : ""}`]),
   );
@@ -124,7 +119,7 @@ export async function POST(request: Request) {
         : null,
   }));
 
-  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels), parsed.data.mode, parsed.data.language);
+  const system = buildTutorSystemPrompt(citations, describeLearnerLevel(learnerLevels), parsed.data.mode, parsed.data.language, basis);
 
   const provider = getAiProvider();
   const iterator = provider.streamText({
@@ -132,20 +127,33 @@ export async function POST(request: Request) {
     system,
   })[Symbol.asyncIterator]();
 
-  // Pull the first delta before committing to a streaming response, so a
-  // missing key / rate limit / timeout surfaces as a clean typed 502 instead
-  // of a truncated 200 stream.
-  let first;
+  // Read ahead before committing to a streaming response: a missing key /
+  // rate limit / timeout surfaces as a clean typed 502, an empty completion
+  // is an error rather than a blank answer, and the out-of-scope sentinel is
+  // caught before any of it reaches the learner.
+  let opening = "";
+  let finished = false;
   try {
-    first = await iterator.next();
+    while (opening.trimStart().length < OUT_OF_SCOPE_SENTINEL.length) {
+      const next = await iterator.next();
+      if (next.done) { finished = true; break; }
+      opening += next.value ?? "";
+    }
   } catch (error) {
     const aiError = classifyAiError(error);
     return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
+  }
+  if (opening.trimStart().startsWith(OUT_OF_SCOPE_SENTINEL)) {
+    return refusalResponse(parsed.data.language);
+  }
+  if (finished && !opening.trim()) {
+    return NextResponse.json({ error: "The AI provider returned an empty answer.", kind: "INVALID_RESPONSE" }, { status: 502 });
   }
 
   const encoder = new TextEncoder();
   const header = JSON.stringify({
     refused: false,
+    basis,
     citations: citations.map((c) => ({
       id: c.id,
       documentId: c.documentId,
@@ -161,8 +169,8 @@ export async function POST(request: Request) {
       const send = (text: string) => controller.enqueue(encoder.encode(text));
       send(`${header}\n\n`);
       try {
-        if (!first.done && first.value) send(first.value);
-        while (true) {
+        send(opening);
+        while (!finished) {
           const { done, value } = await iterator.next();
           if (done) break;
           if (value) send(value);
@@ -183,38 +191,6 @@ export async function POST(request: Request) {
       "Cache-Control": "no-store",
     },
   });
-}
-
-async function demoResponse(messages: { role: "user" | "assistant"; content: string }[], mode: "explain" | "guide" | "quiz", userId: string, language: TutorLanguage): Promise<Response> {
-  const competencies = await db.userCompetency.findMany({
-    where: { userId },
-    select: { currentScore: true, competency: { select: { name: true } } },
-  });
-  const learnerLevels = competencies.map((uc) => ({
-    name: uc.competency.name,
-    level: uc.currentScore != null ? Math.max(1, Math.min(5, Math.ceil(Number(uc.currentScore) / 20))) : null,
-  }));
-  const system = `${buildDemoTutorSystemPrompt(describeLearnerLevel(learnerLevels), mode)}\n${languageInstruction(language)}`;
-  const provider = getAiProvider();
-  const iterator = provider.streamText({ messages, system })[Symbol.asyncIterator]();
-  let first;
-  try { first = await iterator.next(); } catch (error) {
-    const aiError = classifyAiError(error);
-    return NextResponse.json({ error: aiError.message, kind: aiError.kind }, { status: 502 });
-  }
-  const encoder = new TextEncoder();
-  const header = JSON.stringify({ refused: false, citations: [] });
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (t: string) => controller.enqueue(encoder.encode(t));
-      send(`${header}\n\n`);
-      try {
-        if (!first.done && first.value) send(first.value);
-        while (true) { const { done, value } = await iterator.next(); if (done) break; if (value) send(value); }
-      } catch { send("\n\n[The connection to the AI provider was interrupted mid-answer.]"); } finally { controller.close(); }
-    },
-  });
-  return new Response(stream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
 function refusalResponse(language: TutorLanguage): Response {

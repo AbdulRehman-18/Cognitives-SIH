@@ -22,8 +22,7 @@ const en = {
   },
   tutor: {
     title: "Tutor",
-    intro: (name: string) => `Hey ${name} — your measurement-aware tutor. It answers only from your course material and your own uploaded notes, cites every claim, and calibrates to your gaps.`,
-    outOfScope: "Out-of-scope = declined, never guessed.",
+    intro: "Answers come from your course material first, with sources. Anything else in your coursework is answered too, clearly labelled.",
   },
 };
 
@@ -45,8 +44,7 @@ const hi: Dictionary = {
   },
   tutor: {
     title: "ट्यूटर",
-    intro: (name: string) => `नमस्ते ${name} — आपका मापन-आधारित ट्यूटर। यह केवल आपकी पाठ्य सामग्री और आपके अपलोड किए नोट्स से उत्तर देता है, हर तथ्य का स्रोत बताता है, और आपके कौशल अंतर के अनुसार समझाता है।`,
-    outOfScope: "सामग्री से बाहर के प्रश्नों का उत्तर अनुमान से नहीं दिया जाता।",
+    intro: "उत्तर पहले आपकी पाठ्य सामग्री से, स्रोत सहित आते हैं। पाठ्यक्रम के अन्य प्रश्नों के उत्तर भी दिए जाते हैं, स्पष्ट लेबल के साथ।",
   },
 };
 

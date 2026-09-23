@@ -78,6 +78,9 @@
   --page-margin-desktop: 64px; --page-margin-mobile: 20px;
   --content-max: 1280px; --grid-gutter: 24px;
 
+  /* Accent as text/marks: stays legible on both themes */
+  --color-accent-ink: #2E3AFF;
+
   /* Vellum surfaces — warm paper */
   --color-canvas: #ECE8DF;
   --color-sidebar-bg: #F5F1E8;
@@ -118,6 +121,7 @@
 }
 
 .dark {
+  --color-accent-ink: #9AA1FF;
   --color-canvas: #0B0D10;
   --color-sidebar-bg: #14171B;
   --color-surface-1: #1A1E23;
@@ -175,4 +179,36 @@
   nav[aria-label="Breadcrumb"] a:hover { color: var(--color-ink); text-decoration:underline; text-underline-offset:4px; }
   nav[aria-label="Breadcrumb"] [aria-current="page"] { color: var(--color-ink); font-weight:600; }
   @media (prefers-reduced-motion: reduce) { *,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important} }
+}
+
+/* Tutor workspace */
+@layer utilities {
+  .tutor-scroll { scrollbar-width: thin; scrollbar-color: var(--color-border-hover) transparent; }
+  .tutor-scroll::-webkit-scrollbar { width: 8px; }
+  .tutor-scroll::-webkit-scrollbar-thumb { background: var(--color-border-hover); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+
+  @keyframes tutor-enter { from { opacity: 0; transform: translateY(6px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+  .tutor-enter { animation: tutor-enter var(--duration-entrance) var(--ease-entrance) both; }
+
+  /* Streaming caret sits on the last block of the rendered answer. */
+  @keyframes tutor-caret { 50% { opacity: 0; } }
+  .tutor-caret .prose > :last-child::after {
+    content: ""; display: inline-block; width: 2px; height: 1.05em; margin-left: 3px;
+    vertical-align: -0.15em; border-radius: 1px; background: var(--color-accent);
+    animation: tutor-caret 1s steps(1) infinite;
+  }
+
+  /* Retrieval indicator: caliper ticks sweep left to right. */
+  @keyframes tutor-tick { 0%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  .tutor-ticks > span { animation: tutor-tick 1.1s var(--ease-default) infinite; animation-delay: calc(var(--i) * 110ms); }
+
+  /* Gap band on the level scale opens from the measured jaw toward the role stop. */
+  @keyframes level-scale-band { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .level-scale-band { animation: level-scale-band 700ms var(--ease-entrance) 150ms both; }
+
+  /* A source flashes when its inline marker is clicked. */
+  @keyframes tutor-flash { 0% { background: var(--color-accent-20); } 100% { background: transparent; } }
+  .tutor-flash { animation: tutor-flash 1.4s var(--ease-default); }
+
+  ::selection { background: var(--color-accent-20); }
 }

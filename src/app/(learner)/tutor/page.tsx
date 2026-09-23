@@ -1,64 +1,100 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
-import { TutorChat } from "./tutor-chat";
+import { TutorChat, type TutorGap } from "./tutor-chat";
 import { db } from "@/lib/db/client";
 import { MyMaterials } from "@/components/learner/my-materials";
+import { LevelScale } from "@/components/caliper/level-scale";
 import { getDictionary } from "@/i18n/server";
+
+const PIPELINE = [
+  { title: "Retrieve", body: "Your material is searched before a word is written." },
+  { title: "Cite", body: "Claims taken from it carry a marker back to the passage." },
+  { title: "Label", body: "Anything your material doesn’t cover is marked as general knowledge." },
+  { title: "Decline", body: "Questions outside your coursework are turned down." },
+]
 
 export default async function TutorPage() {
   const session = await requireRole("LEARNER");
-  let gaps: { name: string; severity: string }[] = [];
-  let pathWeeks = 0;
+  let gaps: TutorGap[] = [];
   try {
-    const [rows, path] = await Promise.all([
-      db.skillGap.findMany({ where: { userId: session.user.id, severity: { in: ["CRITICAL", "HIGH"] } }, take: 4, orderBy: { gapSize: "desc" }, include: { competency: { select: { name: true } } } }),
-      db.learningPath.findFirst({ where: { userId: session.user.id }, include: { items: true } }),
-    ]);
-    gaps = rows.map((r) => ({ name: r.competency.name, severity: r.severity }));
-    pathWeeks = path ? Math.ceil(path.items.length / 2) : 0;
+    const rows = await db.skillGap.findMany({
+      where: { userId: session.user.id, severity: { in: ["CRITICAL", "HIGH"] } },
+      take: 4,
+      orderBy: [{ severity: "asc" }, { gapSize: "desc" }],
+      include: { competency: { select: { name: true } } },
+    });
+    gaps = rows.map((r) => ({ name: r.competency.name, severity: r.severity, current: r.currentLevel, required: r.requiredLevel }));
   } catch {}
   const personalDocuments = await db.document.findMany({
     where: { ownerId: session.user.id, scope: "PERSONAL" },
     orderBy: { createdAt: "desc" },
     select: { id: true, fileName: true, processingStatus: true, chunkCount: true, createdAt: true },
   });
-  const { t } = await getDictionary();
-  const firstName = session.user.name?.split(" ")[0] ?? "Officer";
+  const { locale, t } = await getDictionary();
 
   return (
-    <>
-      <div className="page-shell py-[28px] flex flex-col gap-[16px] max-w-[1160px]">
-        <div className="flex flex-wrap items-start justify-between gap-[16px]">
-          <div>
-            <div className="flex items-center gap-[10px]">
-              <span className="size-8 rounded-[10px] bg-[color:var(--color-accent)] text-white grid place-items-center"> <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden><path d="M10 3.5l2.2 2.2 3.3-.2-.2 3.3-2.2 2.2-2.2-2.2-.2-3.3 3.3.2-2.2-2.2Z" stroke="white" strokeWidth="1.4" strokeLinejoin="round"/><circle cx="10" cy="14.5" r="1.4" fill="white"/></svg></span>
-              <h1 className="text-[24px] font-[650] tracking-[-0.02em]">{t.tutor.title}</h1>
-              <span className="rounded-full bg-[#12B76A]/10 text-[#0E7A4B] border border-[#12B76A]/20 px-[10px] py-[4px] text-[11px] font-semibold tracking-wide">GROUNDED</span>
-              <span className="hidden md:inline-flex rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[10px] py-[4px] text-[11px] tabular-mono text-muted-foreground">Synced to {gaps.length} gaps · {pathWeeks ? `${pathWeeks} weeks path` : "no path yet"}</span>
-            </div>
-            <p className="text-body text-muted-foreground mt-[8px] max-w-[68ch]">{t.tutor.intro(firstName)} <span className="text-foreground font-medium">{t.tutor.outOfScope}</span></p>
-          </div>
-          <div className="hidden lg:flex items-center gap-[10px] rounded-full bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] px-[14px] py-[8px] shadow-sm">
-            <span className="size-2 rounded-full bg-[#12B76A] animate-pulse" />
-            <span className="text-[11px] tabular-mono text-muted-foreground">Retrieval before generation</span>
-            <span className="h-3 w-px bg-[color:var(--color-border-resting)]" />
-            <span className="text-[11px] tabular-mono text-muted-foreground">Citations required</span>
-          </div>
-        </div>
+    <div className="page-shell flex max-w-[1200px] flex-col gap-[20px] py-[24px] md:py-[28px]">
+      <header className="flex flex-wrap items-baseline gap-x-[16px] gap-y-[4px]">
+        <h1 className="text-[26px] font-[650] leading-[1.1] tracking-[-0.025em]">{t.tutor.title}</h1>
+        <p className="text-[14px] leading-[1.5] text-muted-foreground">{t.tutor.intro}</p>
+      </header>
 
-        {gaps.length ? (
-          <div className="rounded-[16px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[12px] flex flex-wrap items-center gap-[8px]">
-            <span className="text-[11px] tracking-[0.08em] uppercase font-semibold text-muted-foreground">Calibrated to your gaps:</span>
-            {gaps.map((g) => (
-              <span key={g.name} className={`rounded-full px-[12px] py-[6px] text-[12px] font-medium border ${g.severity === "CRITICAL" ? "bg-[rgba(240,68,56,0.10)] text-[#C9190B] border-[rgba(240,68,56,0.18)]" : "bg-[rgba(247,144,9,0.12)] text-[#8A4D00] border-[rgba(247,144,9,0.18)]"}`}>{g.name} · {g.severity}</span>
-            ))}
-            <span className="ml-auto text-[11px] tabular-mono text-muted-foreground hidden md:inline">Tutor personalizes examples & checks to these</span>
-          </div>
-        ) : null}
+      <div className="grid grid-cols-1 gap-[32px] lg:grid-cols-[minmax(0,1fr)_264px] lg:gap-[36px]">
+        <TutorChat gaps={gaps} initialLanguage={locale === "hi" ? "hi" : "en"} />
 
-        <TutorChat initialGaps={gaps.map((g) => g.name)} />
+        <aside className="flex flex-col gap-[28px] lg:pt-[2px]">
+          <RailSection title="Focus areas" note="From your last assessment.">
+            {gaps.length ? (
+              <ul className="flex flex-col">
+                {gaps.map((g) => (
+                  <li key={g.name} className="flex flex-col gap-[6px] border-b border-[color:var(--color-border-resting)] py-[10px] first:pt-[2px] last:border-b-0">
+                    <div className="flex items-baseline justify-between gap-[10px]">
+                      <span className="text-[13px] leading-[1.4] text-foreground">{g.name}</span>
+                      <span className="num shrink-0 text-[11px] text-muted-foreground">L{g.current}→L{g.required}</span>
+                    </div>
+                    <LevelScale current={g.current} required={g.required} severity={g.severity} label={g.name} width={260} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[13px] leading-[1.5] text-muted-foreground">
+                No gaps measured yet.{" "}
+                <Link href="/assessment/new" className="font-medium text-foreground underline decoration-[color:var(--color-border-hover)] underline-offset-4 hover:decoration-[color:var(--color-accent)]">
+                  Take a diagnostic
+                </Link>{" "}
+                so sessions can start from your level.
+              </p>
+            )}
+          </RailSection>
 
-        <MyMaterials initialDocuments={personalDocuments.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))} />
+          <MyMaterials initialDocuments={personalDocuments.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))} />
+
+          <RailSection title="How answers are sourced">
+            <ol className="relative flex flex-col gap-[14px] pl-[18px]">
+              <span className="absolute bottom-[8px] left-[3.5px] top-[8px] w-px bg-[color:var(--color-border-hover)]" aria-hidden />
+              {PIPELINE.map((step) => (
+                <li key={step.title} className="relative flex flex-col gap-[2px]">
+                  <span className="absolute left-[-18px] top-[7px] h-px w-[8px] bg-[color:var(--color-ink-faint)]" aria-hidden />
+                  <span className="text-[13px] font-medium text-foreground">{step.title}</span>
+                  <span className="text-[12px] leading-[1.5] text-muted-foreground">{step.body}</span>
+                </li>
+              ))}
+            </ol>
+          </RailSection>
+        </aside>
       </div>
-    </>
+    </div>
+  );
+}
+
+function RailSection({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-[12px]">
+      <div className="flex items-baseline justify-between gap-[8px]">
+        <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
+        {note && <p className="text-[11px] text-muted-foreground">{note}</p>}
+      </div>
+      {children}
+    </section>
   );
 }

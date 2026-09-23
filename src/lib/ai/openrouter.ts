@@ -44,13 +44,15 @@ export const openrouterProvider: AiProvider = {
         // Same failover array as generateObject — OpenRouter tries each id
         // in order on provider failure.
         model: openrouter.chat(PRIMARY_MODEL, { models: FAILOVER_MODELS }),
-        messages: [
-          ...(opts.system ? ([{ role: "system" as const, content: opts.system }]) : []),
-          ...opts.messages,
-        ],
+        // AI SDK v7 rejects system-role entries in `messages`.
+        instructions: opts.system,
+        messages: opts.messages,
       });
-      for await (const delta of result.textStream) {
-        yield delta;
+      // `textStream` swallows errors and just ends, which reached the client
+      // as an empty answer. `fullStream` surfaces them so they can be typed.
+      for await (const part of result.fullStream) {
+        if (part.type === "text-delta") yield part.text;
+        else if (part.type === "error") throw part.error;
       }
     } catch (error) {
       throw classifyAiError(error);

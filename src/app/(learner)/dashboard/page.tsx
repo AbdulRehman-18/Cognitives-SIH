@@ -2,12 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
-import { DomainMatrix } from "@/components/caliper/domain-matrix";
 import { buttonVariants } from "@/components/ui/button";
 import { getDictionary } from "@/i18n/server";
 
 // Small inline chart helpers — no external deps
-function ReadinessRing({ pct, label }: { pct: number; label: string }) {
+function ReadinessRing({ pct }: { pct: number }) {
   const r = 44, c = 2 * Math.PI * r, off = c * (1 - pct / 100);
   return (
     <div className="flex items-center gap-[16px]">
@@ -19,8 +18,7 @@ function ReadinessRing({ pct, label }: { pct: number; label: string }) {
         <span className="absolute inset-0 grid place-items-center num text-[20px] font-semibold tracking-tight">{pct}%</span>
       </div>
       <div>
-        <p className="text-small font-semibold leading-none">{label}</p>
-        <p className="text-small text-muted-foreground mt-[4px]">vs. target profile for your role</p>
+        <p className="text-small text-muted-foreground">How close you are to your role’s target profile.</p>
         <p className="num text-[11px] text-muted-foreground mt-[6px] tabular-mono">{pct < 50 ? "Priority: close critical gaps first" : "On track — keep momentum"}</p>
       </div>
     </div>
@@ -118,7 +116,6 @@ export default async function LearnerDashboardPage() {
     : 0;
   const critical = gaps.filter((g) => g.severity === "CRITICAL");
   const nextGap = gaps[0];
-  const coveragePct = totalComp ? Math.round((totalAssessed / totalComp) * 100) : 0;
 
   return (
     <>
@@ -142,12 +139,9 @@ export default async function LearnerDashboardPage() {
         {/* Top grid: radar + readiness + coverage */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-[16px]">
           <div className="lg:col-span-7 rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] md:p-[24px] shadow-[var(--shadow-card)] flex flex-col gap-[16px]">
-            <div className="flex items-start justify-between gap-[16px]">
-              <div>
-                <h2 className="text-small font-semibold">Domain balance</h2>
-                <p className="text-small text-muted-foreground">Current level vs target 5 — gaps drive your path.</p>
-              </div>
-              <span className="text-[11px] tracking-widest uppercase text-muted-foreground tabular-mono">{coveragePct}% measured</span>
+            <div>
+              <h2 className="text-small font-semibold">Domain balance</h2>
+              <p className="text-small text-muted-foreground">Current level vs target 5 — gaps drive your path.</p>
             </div>
             <div className="flex flex-col md:flex-row items-center gap-[16px]">
               <MiniRadar values={domainLevels.map((d) => d.level)} />
@@ -166,9 +160,8 @@ export default async function LearnerDashboardPage() {
           <div className="lg:col-span-5 flex flex-col gap-[16px]">
             <div className="rounded-[20px] bg-[color:var(--color-surface-1)] border border-[color:var(--color-border-resting)] p-[20px] md:p-[24px] shadow-[var(--shadow-card)]">
               <h2 className="text-small font-semibold">Readiness</h2>
-              <p className="text-small text-muted-foreground">How close you are to your role’s target profile.</p>
               <div className="mt-[16px]">
-                <ReadinessRing pct={readiness} label={`${readiness}% ready`} />
+                <ReadinessRing pct={readiness} />
               </div>
               <div className="mt-[16px] flex items-center gap-[8px] text-[11px] tabular-mono text-muted-foreground">
                 <span className="size-2 rounded-full bg-[color:var(--color-accent)]" /> Target 80% for full readiness
@@ -182,11 +175,6 @@ export default async function LearnerDashboardPage() {
             </div>
           </div>
         </div>
-
-        {/* Domain matrix kept but upgraded spacing */}
-        <DomainMatrix
-          domains={domainLevels.map((d) => ({ domainCode: d.code, domainName: d.name, level: d.level, competencyCount: d.total, assessedCount: d.assessed }))}
-        />
 
         {/* Priority queue + activity */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-[16px]">

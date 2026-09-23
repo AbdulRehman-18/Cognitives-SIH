@@ -62,11 +62,11 @@ export function MyMaterials({ initialDocuments, className }: { initialDocuments:
   }
 
   return (
-    <section className={cn("rounded-[16px] border border-[color:var(--color-border-resting)] bg-[color:var(--color-surface-1)] p-[16px] flex flex-col gap-[12px]", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-[12px]">
-        <div>
-          <h2 className="text-[13px] font-semibold">My study material</h2>
-          <p className="text-[12px] text-muted-foreground mt-[2px] max-w-[52ch]">Private to you. The tutor and your self-evaluation quizzes can draw on these alongside your trainers’ course material.</p>
+    <section className={cn("flex flex-col gap-[10px]", className)}>
+      <div className="flex items-start justify-between gap-[12px]">
+        <div className="flex flex-col gap-[2px]">
+          <h2 className="text-[13px] font-semibold text-foreground">Your study material</h2>
+          <p className="text-[12px] leading-[1.5] text-muted-foreground">Private to you. Used alongside your trainers’ course documents.</p>
         </div>
         <UploadButton
           endpoint="learnerDocument"
@@ -85,48 +85,54 @@ export function MyMaterials({ initialDocuments, className }: { initialDocuments:
           onUploadError={(uploadError: Error) => setError(uploadError.message)}
           appearance={{
             button:
-              "rounded-full bg-[color:var(--color-accent)] px-[14px] py-[7px] text-[12px] font-semibold text-white hover:brightness-105 data-[state=uploading]:opacity-60",
-            container: "flex flex-col items-end gap-[4px]",
-            allowedContent: "text-[11px] text-muted-foreground",
+              "h-[28px] w-auto rounded-[8px] border border-[color:var(--color-border-hover)] bg-transparent px-[10px] text-[12px] font-medium text-foreground transition-colors hover:bg-[color:var(--color-surface-1)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent)]/30 data-[state=uploading]:opacity-60 after:bg-[color:var(--color-accent)]/15",
+            container: "shrink-0",
+            allowedContent: "hidden",
           }}
-          content={{ button: "Upload notes", allowedContent: "PDF, DOCX, PPTX, audio/video or transcript" }}
+          content={{ button: "Upload" }}
         />
       </div>
 
       {error && <p className="text-[12px] text-[color:var(--color-critical)]" role="alert">{error}</p>}
 
       {documents.length === 0 ? (
-        <p className="text-[12px] text-muted-foreground">No personal material yet.</p>
+        <p className="rounded-[10px] border border-dashed border-[color:var(--color-border-hover)] px-[12px] py-[10px] text-[12px] leading-[1.5] text-muted-foreground">
+          Add notes, slides or transcripts — PDF, DOCX, PPTX, audio or video.
+        </p>
       ) : (
-        <ul className="flex flex-col divide-y divide-[color:var(--color-border-resting)]">
+        <ul className="flex flex-col">
           {documents.map((d) => (
-            <li key={d.id} className="flex items-center gap-[10px] py-[8px]">
-              <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <li key={d.id} className="group flex items-center gap-[10px] border-b border-[color:var(--color-border-resting)] py-[8px] last:border-b-0">
+              <FileText className="size-[14px] shrink-0 text-muted-foreground" aria-hidden />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium">{d.fileName ?? "Untitled document"}</p>
-                <p className="text-[11px] tabular-mono text-muted-foreground">
-                  {formatDate(d.createdAt)}
-                  {d.processingStatus === "READY" ? ` · ${d.chunkCount} sections indexed` : ""}
+                <p className="truncate text-[13px] text-foreground">{d.fileName ?? "Untitled document"}</p>
+                <p className="flex items-center gap-[6px] text-[11px] text-muted-foreground">
+                  <span
+                    className={cn(
+                      "size-[5px] rounded-full",
+                      d.processingStatus === "READY" && "bg-[color:var(--color-grow)]",
+                      d.processingStatus === "FAILED" && "bg-[color:var(--color-critical)]",
+                      IN_FLIGHT.has(d.processingStatus) && "animate-pulse bg-[color:var(--color-ink-faint)]",
+                    )}
+                    aria-hidden
+                  />
+                  <span className={cn(d.processingStatus === "FAILED" && "text-[color:var(--color-critical)]")}>
+                    {STATUS_LABEL[d.processingStatus]}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <span className="num">
+                    {d.processingStatus === "READY" ? `${d.chunkCount} passages` : formatDate(d.createdAt)}
+                  </span>
                 </p>
               </div>
-              <span
-                className={cn(
-                  "rounded-full border px-[8px] py-[3px] text-[11px] font-medium",
-                  d.processingStatus === "READY" && "border-[#12B76A]/25 bg-[#12B76A]/10 text-[#0E7A4B]",
-                  d.processingStatus === "FAILED" && "border-[rgba(240,68,56,0.2)] bg-[rgba(240,68,56,0.1)] text-[#C9190B]",
-                  IN_FLIGHT.has(d.processingStatus) && "border-[color:var(--color-border-resting)] text-muted-foreground animate-pulse",
-                )}
-              >
-                {STATUS_LABEL[d.processingStatus]}
-              </span>
               <button
                 type="button"
                 onClick={() => void remove(d.id)}
                 disabled={deleting === d.id}
                 aria-label={`Delete ${d.fileName ?? "document"}`}
-                className="rounded-full p-[6px] text-muted-foreground hover:bg-[color:var(--color-canvas)] hover:text-foreground disabled:opacity-50"
+                className="rounded-[6px] p-[5px] text-muted-foreground opacity-60 transition-[opacity,color,background-color] hover:bg-[color:var(--color-surface-1)] hover:text-[color:var(--color-critical)] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-30"
               >
-                <Trash2 className="size-4" aria-hidden />
+                <Trash2 className="size-[14px]" aria-hidden />
               </button>
             </li>
           ))}
