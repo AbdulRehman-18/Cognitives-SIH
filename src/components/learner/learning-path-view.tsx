@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowUpRight, Check } from "lucide-react";
+import { Check, PanelRight } from "lucide-react";
 import { LevelScale } from "@/components/caliper/level-scale";
+import { CoursePanel } from "./course-panel";
 import { cn } from "@/lib/utils";
 
 /** done: completed on iGOT · active: enrolled, in progress · todo: not started · untracked: NSSTA, no progress feed */
@@ -24,6 +25,14 @@ export interface PathViewItem {
   pct: number;
   /** Enrol / progress control, rendered for the up-next and in-progress items. */
   action?: React.ReactNode;
+  /** The same control without its own progress bar, for the course panel. */
+  controls?: React.ReactNode;
+  description?: string | null;
+  /** Course difficulty, 1–5. */
+  courseLevel?: number;
+  enrolledAt?: string | null;
+  syncedAt?: string | null;
+  mockMode?: boolean;
 }
 
 export interface LearningPathViewProps {
@@ -206,7 +215,7 @@ function UpNext({ item, doneByCompetency }: { item: PathViewItem; doneByCompeten
             <span className="num">{fmtH(item.hours)}</span>
           </p>
           <h2 id="up-next-heading" className="text-[22px] font-[640] leading-[1.25] tracking-[-0.02em] text-foreground">
-            {item.title}
+            <CoursePanel item={item}>{item.title}</CoursePanel>
           </h2>
           <p className="max-w-[60ch] text-[14px] leading-[1.55] text-muted-foreground">
             Closes your {item.severity === "CRITICAL" ? "critical" : item.severity.toLowerCase()} <span className="text-foreground">{item.competencyName}</span> gap
@@ -226,11 +235,9 @@ function UpNext({ item, doneByCompetency }: { item: PathViewItem; doneByCompeten
           </p>
           <div className="mt-[4px] flex flex-wrap items-center gap-[10px]">
             {item.action}
-            {item.href && (
-              <a href={item.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-[6px] rounded-[8px] border border-[color:var(--color-border-hover)] px-[12px] py-[6px] text-[13px] font-medium text-foreground transition-colors hover:bg-[color:var(--color-canvas)]">
-                Open course <ArrowUpRight className="size-[14px]" aria-hidden />
-              </a>
-            )}
+            <CoursePanel item={item} className="inline-flex items-center gap-[6px] rounded-[8px] border border-[color:var(--color-border-hover)] px-[12px] py-[6px] text-[13px] font-medium text-foreground no-underline transition-colors hover:bg-[color:var(--color-canvas)]">
+              Course details <PanelRight className="size-[14px]" aria-hidden />
+            </CoursePanel>
             <Link href={`/tutor/quiz?topic=${encodeURIComponent(item.competencyName)}`} className="inline-flex items-center rounded-[8px] px-[10px] py-[6px] text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
               Check yourself
             </Link>
@@ -255,13 +262,9 @@ function ScheduleRow({ item, isNext, budget }: { item: PathViewItem; isNext: boo
     <li className={cn("flex items-start gap-[12px] rounded-[10px] px-[10px] py-[10px] -mx-[10px]", isNext && "bg-[color:var(--color-surface-1)]")}>
       <StatusGlyph status={item.status} pct={item.pct} />
       <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-        {item.href ? (
-          <a href={item.href} target="_blank" rel="noopener noreferrer" className={cn("w-fit text-[14px] font-medium leading-[1.4] underline decoration-transparent underline-offset-4 transition-colors hover:decoration-[color:var(--color-border-hover)]", item.status === "done" ? "text-muted-foreground" : "text-foreground")}>
-            {item.title}
-          </a>
-        ) : (
-          <span className={cn("text-[14px] font-medium leading-[1.4]", item.status === "done" ? "text-muted-foreground" : "text-foreground")}>{item.title}</span>
-        )}
+        <CoursePanel item={item} className={cn("text-[14px] font-medium leading-[1.4]", item.status === "done" ? "text-muted-foreground" : "text-foreground")}>
+          {item.title}
+        </CoursePanel>
         <p className="flex flex-wrap items-center gap-x-[6px] gap-y-[2px] text-[12px] text-muted-foreground">
           <span>{SOURCE_LABEL[item.source]}</span>
           <span aria-hidden>·</span>

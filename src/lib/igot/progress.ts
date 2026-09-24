@@ -6,6 +6,9 @@ import type { IgotProgressState } from "@/components/igot/igot-course-action";
 export interface CourseIgotState {
   synced: boolean;
   progress: IgotProgressState | null;
+  enrolledAt: string | null;
+  /** When progress was last pulled from iGOT. */
+  syncedAt: string | null;
 }
 
 /** Per-course iGOT sync + enrolment state for one learner, for IgotCourseAction. */
@@ -25,6 +28,8 @@ export async function loadCourseIgotState(userId: string, courseIds: string[]): 
           progress: p
             ? { status: p.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS", progressPct: Math.round(Number(p.progressPct)) }
             : null,
+          enrolledAt: p?.enrolledAt?.toISOString() ?? null,
+          syncedAt: p?.updatedAt.toISOString() ?? null,
         },
       ];
     }),

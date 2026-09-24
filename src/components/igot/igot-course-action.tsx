@@ -17,13 +17,15 @@ interface Props {
   synced: boolean;
   progress: IgotProgressState | null;
   mockMode: boolean;
+  /** Off where the host draws its own progress readout (the course panel). */
+  showProgressBar?: boolean;
   className?: string;
 }
 
 // Enrol / progress / completion control for one course. All state changes go
 // through the iGOT routes (src/app/api/igot/*); the page re-renders from the
 // server afterwards so scores, gaps and the path reflect the new evidence.
-export function IgotCourseAction({ courseId, source, synced, progress, mockMode, className }: Props) {
+export function IgotCourseAction({ courseId, source, synced, progress, mockMode, showProgressBar = true, className }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -82,7 +84,7 @@ export function IgotCourseAction({ courseId, source, synced, progress, mockMode,
         </span>
       ) : (
         <>
-          <div className="flex items-center gap-[10px]">
+          <div className={cn("flex items-center gap-[10px]", !showProgressBar && "hidden")}>
             <div className="h-[4px] flex-1 min-w-[120px] max-w-[240px] overflow-hidden rounded-full bg-[color:var(--color-border-resting)]" role="progressbar" aria-valuenow={progress.progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="iGOT course progress">
               <div className="h-full rounded-full bg-[color:var(--color-accent)] transition-[width]" style={{ width: `${progress.progressPct}%` }} />
             </div>

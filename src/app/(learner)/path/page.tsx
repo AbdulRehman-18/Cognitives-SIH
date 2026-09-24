@@ -47,6 +47,21 @@ export default async function PathPage() {
           mockMode={mockMode}
         />
       ),
+      controls: (
+        <IgotCourseAction
+          courseId={item.courseId}
+          source={item.source}
+          synced={state?.synced ?? false}
+          progress={progress}
+          mockMode={mockMode}
+          showProgressBar={false}
+        />
+      ),
+      description: item.courseDescription,
+      courseLevel: item.courseLevel,
+      enrolledAt: state?.enrolledAt ?? null,
+      syncedAt: state?.syncedAt ?? null,
+      mockMode,
     };
   });
 

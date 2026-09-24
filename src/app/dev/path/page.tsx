@@ -38,6 +38,17 @@ export default function DevPathPage() {
     competencyName: s.competencyId,
     after: EDGES.filter((e) => e.competencyId === s.competencyId).map((e) => e.prerequisiteId),
     action: META[s.itemId].status === "active" ? <span className="text-[12px] text-muted-foreground">[iGOT progress control]</span> : <span className="rounded-[8px] bg-[color:var(--color-accent)] px-[12px] py-[6px] text-[13px] font-medium text-white">Enrol on iGOT</span>,
+    controls: (
+      <div className="flex flex-wrap gap-[6px] text-[13px]">
+        <span className="rounded-[8px] border border-[color:var(--color-border-hover)] px-[12px] py-[6px]">Sync progress</span>
+        <span className="rounded-[8px] border border-dashed border-[color:var(--color-border-hover)] px-[12px] py-[6px] text-muted-foreground">Simulate +50%</span>
+      </div>
+    ),
+    description: "A practical introduction to Python for statistical work: data frames with pandas, cleaning survey microdata, weighted estimates and reproducible analysis notebooks, using NSS unit-level data as the running example.",
+    courseLevel: 2,
+    enrolledAt: "2026-09-10T09:00:00.000Z",
+    syncedAt: "2026-09-24T08:00:00.000Z",
+    mockMode: true,
   }));
 
   return (

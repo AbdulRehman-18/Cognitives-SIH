@@ -19,6 +19,9 @@ export interface PathItemView {
   gapId: string;
   courseId: string;
   courseTitle: string;
+  courseDescription: string | null;
+  /** Course difficulty, 1–5. */
+  courseLevel: number;
   source: "IGOT" | "NSSTA";
   externalUrl: string | null;
   competencyId: string;
@@ -67,7 +70,7 @@ export async function loadLearningPath(
     where: { userId },
     include: {
       gap: { include: { competency: { select: { name: true } } } },
-      course: { select: { id: true, title: true, source: true, externalUrl: true, durationHours: true } },
+      course: { select: { id: true, title: true, description: true, level: true, source: true, externalUrl: true, durationHours: true } },
     },
     orderBy: [{ score: "desc" }, { id: "asc" }],
   });
@@ -110,6 +113,8 @@ export async function loadLearningPath(
       gapId: r.gapId,
       courseId: r.course.id,
       courseTitle: r.course.title,
+      courseDescription: r.course.description,
+      courseLevel: r.course.level,
       source: r.course.source,
       externalUrl: r.course.externalUrl,
       competencyId: r.gap.competencyId,
